@@ -1,0 +1,21 @@
+# .gitignore 파일 내용 예시
+
+.env
+
+data/*.csv
+data/*.xlsx
+!data/.gitkeep
+
+# API캐시는 예외 - 재생성에 몇시간 걸려서 커밋해서 공유함
+!data/kakao_cache.json
+!data/jibun_cache.json
+
+# 파이썬
+__pycache__/
+*.pyc
+.venv/
+venv/
+ 
+# 에디터/OS
+.vscode/
+.DS_Store
