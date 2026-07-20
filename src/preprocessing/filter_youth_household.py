@@ -5,10 +5,15 @@
   - 전월세구분: 월세/준월세/반전세만 (전세 제외)
   - 전용면적(계약면적): 60㎡ 이하
   - 임차보증금: 1억원(10,000만원) 이하
-  - 월세: 상한을 임의의 라운드넘버로 정하지 않고, '전세 제외+면적+보증금' 조건을
-          통과한 표본의 월세 분포에서 상위 1% 지점을 이상치 컷오프로 사용한다.
-          (특정 클러스터 표본을 늘리려고 상한을 조정하는 것은 선택 편향이므로,
-           목표 결과를 보지 않고 분포 자체에서 객관적으로 컷오프를 도출한다.)
+  - 월세 = 0인 행은 데이터 입력 오류로 판단하여 제외 (전월세구분이 전세가 아닌데
+    월세가 0원인 경우는 경제적으로 성립할 수 없음 - QA 과정에서 발견)
+  - 월세: 상/하한을 임의의 라운드넘버로 정하지 않고, '전세 제외+면적+보증금+월세>0'
+          조건을 통과한 표본의 월세 분포에서 하위/상위 1% 지점을 이상치 컷오프로
+          사용한다 (특정 클러스터 표본을 늘리려고 상한을 조정하는 것은 선택 편향이므로,
+          목표 결과를 보지 않고 분포 자체에서 객관적으로 컷오프를 도출한다).
+          하한이 필요한 이유: 월세>0이어도 '월세 1만원 + 보증금 100만원'처럼
+          보증금까지 함께 비정상적으로 작은 자릿수 입력 오류로 보이는 행이
+          QA 과정에서 발견되어, 상한과 동일한 논리를 하한에도 대칭 적용한다.
   - 14㎡ 미만은 제외하지 않되 '초소형_추정' 컬럼으로 표시(고시원 등 비정형 주거 가능성 -> 별도 검토용)
   - 필터링 후 표본이 30건 미만인 행정동은 제외하지 않고 '표본부족_행정동'으로 표시
     (표본이 적은 건 필터 기준의 결함이 아니라, 해당 지역에 청년 1인가구용 소형
@@ -31,7 +36,8 @@ OUTPUT_PATH = DATA_DIR / "전월세_실거래가_청년1인가구.csv"
 AREA_MAX = 60          # ㎡
 AREA_MIN_WARN = 14     # ㎡ (미만이면 초소형 주거로 표시만, 제외는 안 함)
 DEPOSIT_MAX = 10000    # 만원 (보증금 1억원, 청년전용 버팀목전세자금 대출 기준)
-RENT_OUTLIER_Q = 0.99  # 월세 상한을 이 분위수로 객관적으로 도출 (임의의 라운드넘버 사용 안 함)
+RENT_OUTLIER_Q_HIGH = 0.99  # 월세 상한 (상위 1%)
+RENT_OUTLIER_Q_LOW = 0.01   # 월세 하한 (하위 1%) - 자릿수 입력 오류 추정 이상치 제거
 MIN_SAMPLE_PER_DONG = 30  # 행정동당 최소 표본 수 (미만이면 표본부족으로 표시만, 제외 안 함)
 
 
@@ -111,17 +117,31 @@ def main():
     step = step[step["보증금_num"].notna() & (step["보증금_num"] <= DEPOSIT_MAX)]
     print(f"  보증금 {DEPOSIT_MAX}만원 이하 필터 후: {len(step)}행 (-{n2 - len(step)})")
 
-    # ── 월세 상한: 임의의 라운드넘버 대신, 여기까지 걸러진 표본의 상위 1%를
+    # 월세=0인 행은 데이터 오류로 판단하여 제외 (전세는 이미 위에서 별도로 제외됨.
+    # 전월세구분이 전세가 아닌데 월세가 0원인 건 경제적으로 성립할 수 없음)
+    n2b = len(step)
+    step = step[step["월세금_num"] > 0]
+    print(f"  월세=0(데이터 오류 추정) 제외 후: {len(step)}행 (-{n2b - len(step)})")
+
+    # ── 월세 상/하한: 임의의 라운드넘버 대신, 여기까지 걸러진 표본의 하위/상위 1%를
     #    이상치로 간주하고 그 지점을 컷오프로 사용한다 (클러스터 결과를 보고
     #    역산해서 정한 값이 아니라, 분포 자체에서 기계적으로 도출한 값)
-    rent_q99 = step["월세금_num"].quantile(RENT_OUTLIER_Q)
-    rent_max = round(rent_q99, -1) if pd.notna(rent_q99) else None
-    print(f"  월세 상한 산출: 상위 {(1-RENT_OUTLIER_Q)*100:.0f}% 지점 = {rent_q99:.1f}만원 "
+    rent_q_low = step["월세금_num"].quantile(RENT_OUTLIER_Q_LOW)
+    rent_q_high = step["월세금_num"].quantile(RENT_OUTLIER_Q_HIGH)
+    rent_min = round(rent_q_low) if pd.notna(rent_q_low) else None
+    rent_max = round(rent_q_high, -1) if pd.notna(rent_q_high) else None
+    print(f"  월세 하한 산출: 하위 {RENT_OUTLIER_Q_LOW*100:.0f}% 지점 = {rent_q_low:.1f}만원 "
+          f"-> 반올림하여 컷오프 {rent_min}만원 적용")
+    print(f"  월세 상한 산출: 상위 {(1-RENT_OUTLIER_Q_HIGH)*100:.0f}% 지점 = {rent_q_high:.1f}만원 "
           f"-> 반올림하여 컷오프 {rent_max}만원 적용")
 
     n3 = len(step)
-    step = step[step["월세금_num"].notna() & (step["월세금_num"] <= rent_max)]
-    print(f"  월세 {rent_max}만원 이하 필터 후: {len(step)}행 (-{n3 - len(step)})")
+    step = step[
+        step["월세금_num"].notna()
+        & (step["월세금_num"] >= rent_min)
+        & (step["월세금_num"] <= rent_max)
+    ]
+    print(f"  월세 {rent_min}~{rent_max}만원 범위 필터 후: {len(step)}행 (-{n3 - len(step)})")
 
     step["초소형_추정"] = step["면적"] < AREA_MIN_WARN
 

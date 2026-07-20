@@ -95,6 +95,14 @@ def save_cache(cache: dict, path: Path):
     tmp.replace(path)
 
 
+def normalize_dong_name(value):
+    """'서울특별시 강남구 개포2동' 처럼 시/구가 붙어있어도 '개포2동'(동 이름만) 반환.
+    캐시에 예전 버전의 값이 남아있어도, 최종 출력만큼은 항상 동 이름만 나오도록 하는 안전장치."""
+    if not value or not isinstance(value, str):
+        return value
+    return value.strip().split()[-1]
+
+
 def main():
     if not INPUT_PATH.exists():
         raise FileNotFoundError(f"{INPUT_PATH} 이 없습니다. dong_matcher.py를 먼저 실행하세요.")
@@ -179,6 +187,7 @@ def main():
         return row["행정동명"]
 
     df["행정동명_최종"] = df.apply(apply_final, axis=1)
+    df["행정동명_최종"] = df["행정동명_최종"].apply(normalize_dong_name)
 
     # 통계
     jibun_hit = df.loc[jibun_target].apply(
