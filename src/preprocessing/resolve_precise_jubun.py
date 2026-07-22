@@ -15,6 +15,7 @@
 """
 
 import json
+import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -39,6 +40,7 @@ if not KAKAO_API_KEY:
 INPUT_PATH = DATA_DIR / "전월세_실거래가_통합_행정동.csv"
 ROAD_CACHE_PATH = DATA_DIR / "kakao_cache.json"        # 도로명 기반 (resolve_ambiguous.py 산출)
 JIBUN_CACHE_PATH = DATA_DIR / "jibun_cache.json"       # 지번 기반 (이 스크립트 산출)
+OFFICIAL_DONG_LIST_PATH = DATA_DIR / "행정동_공식명_목록.csv"  # dong_matcher.py 산출
 OUTPUT_PATH = DATA_DIR / "전월세_실거래가_통합_행정동_보정.csv"
 
 ADDRESS_URL = "https://dapi.kakao.com/v2/local/search/address.json"
@@ -95,12 +97,35 @@ def save_cache(cache: dict, path: Path):
     tmp.replace(path)
 
 
-def normalize_dong_name(value):
-    """'서울특별시 강남구 개포2동' 처럼 시/구가 붙어있어도 '개포2동'(동 이름만) 반환.
-    캐시에 예전 버전의 값이 남아있어도, 최종 출력만큼은 항상 동 이름만 나오도록 하는 안전장치."""
+def normalize_dong_name(value, official_set: set):
+    """카카오/juso API 결과와 KIKmix 공식 명칭 표기가 다른 두 가지 문제를 보정한다.
+    1) '서울특별시 강남구 개포2동'처럼 시/구가 붙어있으면 마지막 단어(동 이름)만 남긴다.
+    2) API는 보통 '제'를 생략해서 반환하지만(예: '가양1동'), 공식 명칭은 동마다
+       제각각 '제'가 붙기도/안 붙기도 한다(예: '가양제1동'은 제가 붙음, '역삼1동'은 안 붙음).
+       공식 목록(official_set)과 대조해서, '제'를 추가하거나 제거했을 때 공식 명칭과
+       일치하면 그 공식 명칭으로 되돌린다. 일괄 규칙이 아니라 동마다 실제 공식 표기를
+       따르기 위해, 목록과 직접 대조하는 방식을 쓴다.
+    """
     if not value or not isinstance(value, str):
         return value
-    return value.strip().split()[-1]
+
+    candidate = value.strip().split()[-1]  # 시/구 접두어 제거
+
+    if candidate in official_set:
+        return candidate
+
+    # '제'가 없는데 공식 명칭엔 있는 경우: '가양1동' -> '가양제1동', '성수1가1동' -> '성수1가제1동',
+    # '면목3.8동' -> '면목제3.8동' (합성동은 번호에 점(.)이 낀 경우가 있어 [\d.]+로 처리)
+    inserted = re.sub(r"^(.+?)([\d.]+가?동)$", r"\1제\2", candidate)
+    if inserted in official_set:
+        return inserted
+
+    # '제'가 있는데 공식 명칭엔 없는 경우: '가양제1동' -> '가양1동'
+    stripped = re.sub(r"제([\d.]+가?동)$", r"\1", candidate)
+    if stripped in official_set:
+        return stripped
+
+    return candidate  # 공식 목록에서도 못 찾으면 원래 형태 그대로 (수동 확인 필요)
 
 
 def main():
@@ -168,6 +193,14 @@ def main():
 
     road_cache = load_cache(ROAD_CACHE_PATH)
 
+    if not OFFICIAL_DONG_LIST_PATH.exists():
+        sys.exit(
+            f"{OFFICIAL_DONG_LIST_PATH} 이 없습니다. dong_matcher.py를 먼저(다시) 실행해서 "
+            f"공식 행정동명 목록을 생성하세요."
+        )
+    official_set = set(pd.read_csv(OFFICIAL_DONG_LIST_PATH, encoding="utf-8-sig")["행정동명"])
+    print(f"공식 행정동명 목록 로드: {len(official_set)}개")
+
     def apply_final(row):
         if row["행정동_추정필요"] != True:
             return row["행정동명"]
@@ -187,7 +220,11 @@ def main():
         return row["행정동명"]
 
     df["행정동명_최종"] = df.apply(apply_final, axis=1)
-    df["행정동명_최종"] = df["행정동명_최종"].apply(normalize_dong_name)
+    before_norm = df["행정동명_최종"].nunique()
+    df["행정동명_최종"] = df["행정동명_최종"].apply(lambda v: normalize_dong_name(v, official_set))
+    after_norm = df["행정동명_최종"].nunique()
+    print(f"정규화 전 고유 행정동 수: {before_norm} -> 정규화 후: {after_norm} "
+          f"(줄어든 만큼 '제' 표기 등으로 쪼개져 있던 동이 하나로 합쳐진 것)")
 
     # 통계
     jibun_hit = df.loc[jibun_target].apply(

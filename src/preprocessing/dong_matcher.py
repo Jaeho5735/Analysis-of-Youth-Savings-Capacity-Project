@@ -1,6 +1,6 @@
 """
 법정동(시군구 필드) -> 행정동명 / 행정동코드 매칭 스크립트
-입력: data/전월세_실거래가_통합.csv, data/대한민국 법정동 행정동 코드.xlsx
+입력: data/전월세_실거래가_통합.csv, data/대한민국_법정동_행정동_코드.xlsx
 출력: data/전월세_실거래가_통합_행정동.csv
 """
 
@@ -14,8 +14,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 
 MERGED_CSV_PATH = DATA_DIR / "전월세_실거래가_통합.csv"
-CODE_XLSX_NAME = "대한민국 법정동 행정동 코드.xlsx"  # 팀 공유 드라이브 파일명과 반드시 동일하게 유지
+CODE_XLSX_NAME = "대한민국_법정동_행정동_코드.xlsx"  # 팀 공유 드라이브 파일명과 반드시 동일하게 유지
 OUTPUT_PATH = DATA_DIR / "전월세_실거래가_통합_행정동.csv"
+OFFICIAL_DONG_LIST_PATH = DATA_DIR / "행정동_공식명_목록.csv"
 
 
 def find_code_xlsx() -> Path:
@@ -101,6 +102,20 @@ def main():
     print(f"코드표 파일: {code_path.name}")
     code_df = load_code_table(code_path)
     lookup = build_lookup(code_df)
+
+    # 공식 행정동명 목록을 별도 저장 (resolve_precise_jibun.py에서 '제' 유무 등
+    # 표기 정규화의 기준값으로 재사용 - API 응답이 공식 명칭과 다를 때 되돌리기 위함)
+    # 주의 1: lookup["행정동명"]은 분동된 법정동마다 '대표값 하나만' 골라놓은 결과라
+    # 나머지 진짜 행정동들이 빠져있다. 반드시 code_df(코드표 원본)의 읍면동명 전체를 써야
+    # "가양2동", "가양3동"처럼 대표로 안 뽑힌 진짜 행정동까지 빠짐없이 포함된다.
+    # 주의 2: 전국 단위로 만들면 안 된다. "가양1동"(제 없음)처럼 서울엔 없어도 다른
+    # 지역에 우연히 같은 이름의 행정동이 존재하면, 정규화 함수가 "이미 공식 이름이네"라고
+    # 착각해서 서울 기준 정규화(가양1동->가양제1동)를 건너뛰어 버리는 문제가 실제로 발생했다.
+    # 이 프로젝트는 서울만 다루므로 서울로 한정한다.
+    seoul_code_df = code_df[code_df["시도명"] == "서울특별시"]
+    official_dongs = pd.DataFrame({"행정동명": sorted(seoul_code_df["읍면동명"].dropna().unique())})
+    official_dongs.to_csv(OFFICIAL_DONG_LIST_PATH, index=False, encoding="utf-8-sig")
+    print(f"공식 행정동명 목록 저장: {OFFICIAL_DONG_LIST_PATH} ({len(official_dongs)}개, 코드표 원본 기준)")
 
     merged = df.merge(
         lookup[["시도명", "시군구명", "동리명", "행정동명", "행정동코드", "후보수", "행정동_추정필요"]],
