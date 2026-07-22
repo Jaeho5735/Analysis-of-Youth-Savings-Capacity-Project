@@ -39,7 +39,8 @@ if not JUSO_API_KEY:
 JUSO_URL = "https://business.juso.go.kr/addrlink/addrLinkApi.do"
 
 
-def query_juso(query: str, expected_gu: str) -> str | None:
+def query_juso(query: str, expected_gu: str) -> tuple:
+    """반환값: (행정동명 또는 None, 에러메시지 또는 None)"""
     params = {
         "confmKey": JUSO_API_KEY,
         "currentPage": 1,
@@ -54,15 +55,15 @@ def query_juso(query: str, expected_gu: str) -> str | None:
 
     common = data.get("results", {}).get("common", {})
     if common.get("errorCode") != "0":
-        return None
+        return None, f"{common.get('errorCode')}: {common.get('errorMessage')}"
 
     for juso in data.get("results", {}).get("juso", []):
         # 검증: 실제로 우리가 물어본 구와 일치하는 결과만 채택
         if juso.get("sggNm") == expected_gu:
             hemdNm = juso.get("hemdNm")
             if hemdNm:
-                return hemdNm
-    return None
+                return hemdNm, None
+    return None, "구 불일치 또는 hemdNm 없음 (결과는 있으나 조건 미충족)"
 
 
 def main():
@@ -81,17 +82,17 @@ def main():
         query = f"{시도} {구} {도로명}".strip()
 
         try:
-            dong = query_juso(query, 구)
+            dong, error_msg = query_juso(query, 구)
         except requests.RequestException as e:
             print(f"  [{i}/{len(failed_keys)}] 요청 실패: {query} -> {e}")
-            dong = None
+            dong, error_msg = None, str(e)
 
         if dong:
             raw_cache[raw_key] = dong
             updated += 1
             print(f"  [{i}/{len(failed_keys)}] {구} {도로명} -> {dong}")
         else:
-            print(f"  [{i}/{len(failed_keys)}] {구} {도로명} -> 여전히 매칭 실패 (또는 구 불일치로 기각)")
+            print(f"  [{i}/{len(failed_keys)}] {구} {도로명} -> 매칭 실패 ({error_msg})")
 
         if i % 100 == 0:
             with open(CACHE_PATH, "w", encoding="utf-8") as f:

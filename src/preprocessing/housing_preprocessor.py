@@ -23,6 +23,9 @@ OUTPUT_PATH = DATA_DIR / "전월세_실거래가_통합.csv"
 # 국토부 원본 파일은 항상 이 셋 중 하나로 시작한다.
 # (파이프라인 자체 산출물인 "전월세_실거래가_통합.csv", "..._행정동.csv" 등은
 #  이 접두어로 시작하지 않으므로 자동으로 걸러진다)
+# 국토부 원본 파일은 항상 이 셋 중 하나로 시작하고, '실거래가'가 포함된다.
+# ('오피스텔'만으로는 부족함 - data 폴더에 '오피스텔_전월세전환율.csv' 같은
+#  다른 목적의 파일도 있어서, 접두어만 보면 그 파일까지 잘못 끌려들어옴)
 VALID_PREFIXES = ("단독다가구", "연립다세대", "오피스텔")
 
 
@@ -64,6 +67,7 @@ def main():
         f for f in sorted(all_csv)
         if "~$" not in os.path.basename(f)
         and os.path.basename(f).startswith(VALID_PREFIXES)
+        and "실거래가" in os.path.basename(f)
     ]
     skipped = sorted(set(all_csv) - set(csv_files))
     if skipped:
