@@ -103,19 +103,30 @@ def main():
     code_df = load_code_table(code_path)
     lookup = build_lookup(code_df)
 
-    # 공식 행정동명 목록을 별도 저장 (resolve_precise_jibun.py에서 '제' 유무 등
-    # 표기 정규화의 기준값으로 재사용 - API 응답이 공식 명칭과 다를 때 되돌리기 위함)
-    # 주의 1: lookup["행정동명"]은 분동된 법정동마다 '대표값 하나만' 골라놓은 결과라
-    # 나머지 진짜 행정동들이 빠져있다. 반드시 code_df(코드표 원본)의 읍면동명 전체를 써야
-    # "가양2동", "가양3동"처럼 대표로 안 뽑힌 진짜 행정동까지 빠짐없이 포함된다.
-    # 주의 2: 전국 단위로 만들면 안 된다. "가양1동"(제 없음)처럼 서울엔 없어도 다른
-    # 지역에 우연히 같은 이름의 행정동이 존재하면, 정규화 함수가 "이미 공식 이름이네"라고
-    # 착각해서 서울 기준 정규화(가양1동->가양제1동)를 건너뛰어 버리는 문제가 실제로 발생했다.
-    # 이 프로젝트는 서울만 다루므로 서울로 한정한다.
-    seoul_code_df = code_df[code_df["시도명"] == "서울특별시"]
-    official_dongs = pd.DataFrame({"행정동명": sorted(seoul_code_df["읍면동명"].dropna().unique())})
-    official_dongs.to_csv(OFFICIAL_DONG_LIST_PATH, index=False, encoding="utf-8-sig")
-    print(f"공식 행정동명 목록 저장: {OFFICIAL_DONG_LIST_PATH} ({len(official_dongs)}개, 코드표 원본 기준)")
+    # 공식 행정동 참조표(시군구명,행정동명,행정동코드). 서울로 한정하고
+    # code_df 원본 읍면동명 전체를 쓴다(lookup의 대표값만 쓰면 가양2동 등
+    # 대표로 안 뽑힌 동이 누락되고, 전국 단위로 하면 다른 지역 동명이인
+    # 때문에 정규화가 잘못 건너뛰어짐).
+    seoul_code_df = code_df[code_df["시도명"] == "서울특별시"].copy()
+    official_ref = (
+        seoul_code_df[["시군구명", "읍면동명", "행정동코드"]]
+        .dropna(subset=["읍면동명"])
+        .drop_duplicates()
+        .rename(columns={"읍면동명": "행정동명"})
+        .sort_values(["시군구명", "행정동명"])
+    )
+    official_ref["행정동코드"] = official_ref["행정동코드"].astype(str)
+    official_ref.to_csv(OFFICIAL_DONG_LIST_PATH, index=False, encoding="utf-8-sig")
+    print(f"공식 행정동 참조표 저장: {OFFICIAL_DONG_LIST_PATH} "
+          f"({official_ref['행정동명'].nunique()}개 고유 이름, {len(official_ref)}행 - "
+          f"이름 겹치는 행정동이 있으면 행 수가 이름 수보다 많음)")
+    dup_names = official_ref["행정동명"].value_counts()
+    dup_names = dup_names[dup_names > 1]
+    if len(dup_names) > 0:
+        print(f"⚠️ 서울 안에서 이름이 겹치는 행정동 {len(dup_names)}개 발견 (반드시 구까지 같이 봐야 함):")
+        for name, cnt in dup_names.items():
+            gus = official_ref.loc[official_ref["행정동명"] == name, "시군구명"].tolist()
+            print(f"   {name}: {gus}")
 
     merged = df.merge(
         lookup[["시도명", "시군구명", "동리명", "행정동명", "행정동코드", "후보수", "행정동_추정필요"]],
