@@ -1,24 +1,30 @@
 """
-표면 주거비 산출 스크립트.
+표면 주거비 산출.
 
 표면 주거비 = 월세금(만원) + 보증금(만원) x 전월세전환율 / 12
 
-전환율 적용 방식:
-  - 단독다가구/연립다세대: (권역, 연월, 주택유형) 기준으로 전환율을 붙인다.
-  - 오피스텔: 권역별 데이터에 더해 면적구간(40㎡이하 / 40㎡초과~60㎡이하)까지
-    나뉘어 있어, (권역, 면적구간, 연월) 기준으로 붙인다.
-  - 전환율 데이터 범위 밖의 계약년월은 가장 가까운 달의 값으로 채우고,
-    '전환율_범위외_보정' 컬럼에 표시한다.
+전환율은 단독다가구/연립다세대는 (권역,연월,주택유형), 오피스텔은
+(권역,면적구간,연월) 기준으로 붙인다. 범위 밖 연월은 가장 가까운 달로 채우고
+'전환율_범위외_보정'에 표시한다(YYYYMM은 연*12+월로 바꿔서 거리 계산 - 정수로
+그냥 빼면 12월<->1월 경계가 틀어짐).
+
+행정동 식별은 이름이 아니라 '행정동코드_최종' 기준. 서울 안에 이름이 겹치는
+행정동(신사동 등)이 있어서 이름만으로 묶으면 다른 동네가 섞인다.
+
+산출물 2종:
+  표면주거비_행정동별.csv - 행정동x주택유형별 중앙값
+  표면주거비_행정동_통합.csv - 행정동당 1행, 전체 거래에서 직접 낸 pooled 중앙값
+    (유형별 중앙값을 나중에 평균내면 표본 가중치가 무시되므로, K-Means 등
+    군집화에는 반드시 이 파일을 쓴다)
 
 입력:
   data/전월세_실거래가_청년1인가구.csv
-  data/전월세전환율_권역별.csv           (단독다가구/연립다세대, load_conversion_rate.py 산출물)
-  data/전월세전환율_오피스텔_권역별.csv  (오피스텔, load_officetel_rate.py 산출물)
+  data/전월세전환율_권역별.csv, data/전월세전환율_오피스텔_권역별.csv
   data/자치구_권역_매핑.csv
-
 출력:
   data/표면주거비_거래단위.csv
   data/표면주거비_행정동별.csv
+  data/표면주거비_행정동_통합.csv
 """
 
 from pathlib import Path
@@ -35,7 +41,16 @@ OFFICETEL_RATE_PATH = DATA_DIR / "전월세전환율_오피스텔_권역별.csv"
 MAP_PATH = DATA_DIR / "자치구_권역_매핑.csv"
 
 OUT_TXN = DATA_DIR / "표면주거비_거래단위.csv"
-OUT_DONG = DATA_DIR / "표면주거비_행정동별.csv"
+OUT_DONG_TYPE = DATA_DIR / "표면주거비_행정동별.csv"
+OUT_DONG_POOLED = DATA_DIR / "표면주거비_행정동_통합.csv"
+
+MIN_SAMPLE = 30
+
+
+def ym_to_month_index(ym: int) -> int:
+    """202401 -> 2024*12+1 형태로 변환. 이 공간에서 뺄셈해야 12월<->1월 경계가 맞는다."""
+    year, month = divmod(int(ym), 100)
+    return year * 12 + month
 
 
 def nearest_month_rate(target_ym: int, rate_lookup: dict) -> tuple:
@@ -43,8 +58,9 @@ def nearest_month_rate(target_ym: int, rate_lookup: dict) -> tuple:
         return np.nan, False
     if target_ym in rate_lookup:
         return rate_lookup[target_ym], False
+    target_idx = ym_to_month_index(target_ym)
     available = sorted(rate_lookup.keys())
-    closest = min(available, key=lambda ym: abs(ym - target_ym))
+    closest = min(available, key=lambda ym: abs(ym_to_month_index(ym) - target_idx))
     return rate_lookup[closest], True
 
 
@@ -65,6 +81,11 @@ def main():
     gu_zone = pd.read_csv(MAP_PATH, encoding="utf-8-sig")
 
     print(f"원본 거래 행 수: {len(df)}")
+
+    if "행정동코드_최종" not in df.columns:
+        raise KeyError(
+            "'행정동코드_최종' 컬럼이 없습니다. resolve_precise_jibun.py를 최신 버전으로 다시 실행하세요."
+        )
 
     # ── 자치구 -> 권역 매핑 ──────────────────────────────────
     gu_to_zone = dict(zip(gu_zone["자치구"], gu_zone["권역"]))
@@ -139,21 +160,54 @@ def main():
     df.to_csv(OUT_TXN, index=False, encoding="utf-8-sig")
     print(f"거래 단위 결과 저장: {OUT_TXN}")
 
-    # ── 행정동 x 주택유형별 중앙값 집계 ──────────────────────
-    agg = (
-        df.dropna(subset=["표면_주거비"])
-        .groupby(["행정동명_최종", "주택유형"])["표면_주거비"]
+    valid_df = df.dropna(subset=["표면_주거비", "행정동코드_최종"])
+    dropped_by_code = df["표면_주거비"].notna().sum() - len(valid_df)
+    if dropped_by_code > 0:
+        print(f"⚠️ 표면_주거비는 계산됐지만 행정동코드_최종이 없어 집계에서 추가 제외: "
+              f"{dropped_by_code}행 (resolve_precise_jibun.py의 '조회 실패' 로그와 대응)")
+
+    # ── (부가 정보) 행정동코드 x 주택유형별 중앙값 ──────────────
+    agg_type = (
+        valid_df.groupby(["행정동코드_최종", "시군구명", "행정동명_최종", "주택유형"])["표면_주거비"]
         .agg(중앙값="median", 표본수="count")
         .reset_index()
     )
-    agg["표본부족"] = agg["표본수"] < 30
+    agg_type["표본부족"] = agg_type["표본수"] < MIN_SAMPLE
+    agg_type.to_csv(OUT_DONG_TYPE, index=False, encoding="utf-8-sig")
+    print(f"\n행정동x유형별 집계 저장: {OUT_DONG_TYPE} ({len(agg_type)}개 조합)")
 
-    agg.to_csv(OUT_DONG, index=False, encoding="utf-8-sig")
-    print(f"행정동별 집계 결과 저장: {OUT_DONG} ({len(agg)}개 행정동x유형 조합)")
-    print(f"표본 30건 미만 조합: {agg['표본부족'].sum()}개")
+    # 군집화용: 행정동당 1행, pooled 중앙값 (유형별 평균이 아니라 개별 거래 직접 계산)
+    agg_pooled = (
+        valid_df.groupby(["행정동코드_최종", "시군구명", "행정동명_최종"])["표면_주거비"]
+        .agg(표면주거비_중앙값="median", 표본수="count")
+        .reset_index()
+    )
+    agg_pooled["표본부족"] = agg_pooled["표본수"] < MIN_SAMPLE
 
-    print("\n미리보기:")
-    print(agg.sort_values("표본수", ascending=False).head(10).to_string(index=False))
+    # 이 행정동에 실제로 존재하는 주택유형 구성도 참고용으로 같이 남긴다
+    type_mix = (
+        valid_df.groupby(["행정동코드_최종"])["주택유형"]
+        .agg(lambda s: ", ".join(f"{k}:{v}" for k, v in s.value_counts().items()))
+        .rename("주택유형_구성")
+    )
+    agg_pooled = agg_pooled.merge(type_mix, on="행정동코드_최종", how="left")
+
+    agg_pooled.to_csv(OUT_DONG_POOLED, index=False, encoding="utf-8-sig")
+    print(f"행정동 통합(pooled) 집계 저장: {OUT_DONG_POOLED} ({len(agg_pooled)}개 행정동, "
+          f"K-Means 등 군집화에는 이 파일을 사용하세요)")
+    print(f"pooled 기준 표본 {MIN_SAMPLE}건 미만 행정동: {agg_pooled['표본부족'].sum()}개")
+
+    # 이름 겹침(신사동 등) 확인
+    name_counts = agg_pooled.groupby("행정동명_최종")["행정동코드_최종"].nunique()
+    dup = name_counts[name_counts > 1]
+    if len(dup) > 0:
+        print(f"\n⚠️ 이름은 같지만 코드가 다른 행정동 {len(dup)}개:")
+        for name in dup.index:
+            rows = agg_pooled[agg_pooled["행정동명_최종"] == name][["시군구명", "행정동코드_최종", "표본수"]]
+            print(rows.to_string(index=False))
+
+    print("\n미리보기 (pooled, 표본수 상위 10개):")
+    print(agg_pooled.sort_values("표본수", ascending=False).head(10).to_string(index=False))
 
 
 if __name__ == "__main__":

@@ -97,35 +97,9 @@ def save_cache(cache: dict, path: Path):
     tmp.replace(path)
 
 
-def normalize_dong_name(value, official_set: set):
-    """카카오/juso API 결과와 KIKmix 공식 명칭 표기가 다른 두 가지 문제를 보정한다.
-    1) '서울특별시 강남구 개포2동'처럼 시/구가 붙어있으면 마지막 단어(동 이름)만 남긴다.
-    2) API는 보통 '제'를 생략해서 반환하지만(예: '가양1동'), 공식 명칭은 동마다
-       제각각 '제'가 붙기도/안 붙기도 한다(예: '가양제1동'은 제가 붙음, '역삼1동'은 안 붙음).
-       공식 목록(official_set)과 대조해서, '제'를 추가하거나 제거했을 때 공식 명칭과
-       일치하면 그 공식 명칭으로 되돌린다. 일괄 규칙이 아니라 동마다 실제 공식 표기를
-       따르기 위해, 목록과 직접 대조하는 방식을 쓴다.
-    """
-    if not value or not isinstance(value, str):
-        return value
-
-    candidate = value.strip().split()[-1]  # 시/구 접두어 제거
-
-    if candidate in official_set:
-        return candidate
-
-    # '제'가 없는데 공식 명칭엔 있는 경우: '가양1동' -> '가양제1동', '성수1가1동' -> '성수1가제1동',
-    # '면목3.8동' -> '면목제3.8동' (합성동은 번호에 점(.)이 낀 경우가 있어 [\d.]+로 처리)
-    inserted = re.sub(r"^(.+?)([\d.]+가?동)$", r"\1제\2", candidate)
-    if inserted in official_set:
-        return inserted
-
-    # '제'가 있는데 공식 명칭엔 없는 경우: '가양제1동' -> '가양1동'
-    stripped = re.sub(r"제([\d.]+가?동)$", r"\1", candidate)
-    if stripped in official_set:
-        return stripped
-
-    return candidate  # 공식 목록에서도 못 찾으면 원래 형태 그대로 (수동 확인 필요)
+import sys as _sys
+_sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "src"))
+from utils.dong_names import normalize_dong_name  # noqa: E402
 
 
 def main():
@@ -196,10 +170,18 @@ def main():
     if not OFFICIAL_DONG_LIST_PATH.exists():
         sys.exit(
             f"{OFFICIAL_DONG_LIST_PATH} 이 없습니다. dong_matcher.py를 먼저(다시) 실행해서 "
-            f"공식 행정동명 목록을 생성하세요."
+            f"공식 행정동 참조표를 생성하세요."
         )
-    official_set = set(pd.read_csv(OFFICIAL_DONG_LIST_PATH, encoding="utf-8-sig")["행정동명"])
+    official_ref = pd.read_csv(OFFICIAL_DONG_LIST_PATH, encoding="utf-8-sig", dtype={"행정동코드": str})
+    official_set = set(official_ref["행정동명"])
     print(f"공식 행정동명 목록 로드: {len(official_set)}개")
+
+    # (시군구명, 행정동명) -> 행정동코드. 서울 안에 이름이 겹치는 행정동(신사동 등)이
+    # 있어서, 이름만으로는 코드를 하나로 정할 수 없다 - 반드시 구까지 같이 키로 써야 한다.
+    code_lookup = {
+        (row["시군구명"], row["행정동명"]): row["행정동코드"]
+        for _, row in official_ref.iterrows()
+    }
 
     def apply_final(row):
         if row["행정동_추정필요"] != True:
@@ -223,8 +205,33 @@ def main():
     before_norm = df["행정동명_최종"].nunique()
     df["행정동명_최종"] = df["행정동명_최종"].apply(lambda v: normalize_dong_name(v, official_set))
     after_norm = df["행정동명_최종"].nunique()
-    print(f"정규화 전 고유 행정동 수: {before_norm} -> 정규화 후: {after_norm} "
-          f"(줄어든 만큼 '제' 표기 등으로 쪼개져 있던 동이 하나로 합쳐진 것)")
+    print(f"정규화 전 고유 행정동 수: {before_norm} -> 정규화 후: {after_norm}")
+
+    # 행정동코드_최종: (시군구명,행정동명_최종)으로 다시 조회한다.
+    # 기존 행정동코드는 API 재조회 이후 갱신 안 된 stale 값일 수 있고,
+    # 이름만으로 찾으면 신사동 같은 동명이인 문제가 생긴다.
+    df["행정동코드_최종"] = df.apply(
+        lambda r: code_lookup.get((r["시군구명"], r["행정동명_최종"])), axis=1
+    )
+    code_missing = df["행정동코드_최종"].isna().sum()
+
+    # CSV 재로드 시 float 잔재("1234.0" vs "1234")로 오판하지 않도록 정규화 후 비교
+    def normalize_code(s):
+        return pd.to_numeric(s, errors="coerce").astype("Int64").astype(str)
+
+    code_changed = (normalize_code(df["행정동코드_최종"]) != normalize_code(df["행정동코드"])).sum()
+    print(f"행정동코드_최종 조회 실패: {code_missing}행")
+    print(f"기존 행정동코드와 다르게 갱신된 행: {code_changed}행")
+
+    # 이름은 같지만 구가 다른(신사동 등) 행정동이 실제로 섞여 있었는지 확인
+    name_gu_pairs = df[["행정동명_최종", "시군구명"]].dropna().drop_duplicates()
+    dup_name_counts = name_gu_pairs["행정동명_최종"].value_counts()
+    dup_names = dup_name_counts[dup_name_counts > 1]
+    if len(dup_names) > 0:
+        print(f"\n⚠️ 이름이 겹치는 행정동 {len(dup_names)}개:")
+        for name in dup_names.index:
+            gus = name_gu_pairs.loc[name_gu_pairs["행정동명_최종"] == name, "시군구명"].tolist()
+            print(f"   {name}: {gus}")
 
     # 통계
     jibun_hit = df.loc[jibun_target].apply(
