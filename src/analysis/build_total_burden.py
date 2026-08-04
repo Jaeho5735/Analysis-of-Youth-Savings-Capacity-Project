@@ -31,7 +31,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 
 SURFACE_PATH = DATA_DIR / "표면주거비_행정동_통합.csv"
-COMMUTE_PATH = DATA_DIR / "commute_burden_by_home_dong.csv"
+# 12번 노트북이 통근부담에 네트워크 지표를 결합한 최종본을 우선 쓴다.
+# 없으면 11번 산출물로 물러서되, 그 경우 통근권 변수는 비게 된다.
+_COMMUTE_CANDIDATES = ["commute_burden_with_network_metrics.csv", "commute_burden_by_home_dong.csv"]
+COMMUTE_PATH = next((DATA_DIR / f for f in _COMMUTE_CANDIDATES if (DATA_DIR / f).exists()),
+                    DATA_DIR / _COMMUTE_CANDIDATES[0])
 INDEX_PATH = DATA_DIR / "생활소비부담지수_행정동별.csv"
 CROSSWALK_PATH = DATA_DIR / "행정동_기준코드표.csv"
 OUT_PATH = DATA_DIR / "주거통근_통합부담_행정동별.csv"
@@ -56,8 +60,12 @@ def load_and_merge() -> pd.DataFrame:
 
     com = pd.read_csv(COMMUTE_PATH, encoding="utf-8-sig")
     com["행정동코드8"] = com["거주동 코드"].astype(str).str.zfill(8)
+    drop = [c for c in ["거주동 이름", "거주동 이름_network"] if c in com.columns]
+    print(f"통근부담 입력: {COMMUTE_PATH.name}")
+    has_net = "동일통근권_내부출근비율" in com.columns
+    print(f"  통근권 네트워크 지표: {'포함' if has_net else '없음 - 군집 변수 2종이 비게 됨'}")
 
-    df = surf.merge(com.drop(columns=["거주동 이름"]), on="행정동코드8",
+    df = surf.merge(com.drop(columns=drop), on="행정동코드8",
                     how="inner", validate="one_to_one")
     print(f"주거 {len(surf)} + 통근 {len(com)} -> 결합 {len(df)}행")
     only_com = set(com["행정동코드8"]) - set(surf["행정동코드8"])
@@ -175,7 +183,11 @@ def main():
             "순위_주거비", "순위_통합부담", "월세착시_순위차", "부담유형",
             "생활소비부담지수", "반영업종수", "업종부족",
             "내부통근비중", "교통비_산출포함률", "교통비_커버리지부족",
-            "주요_출근목적지_목록"]
+            "주요_출근목적지_목록",
+            # 12번 네트워크 지표 - 군집 입력 및 해석용
+            "통근권_코드", "동일통근권_내부출근비율", "외부통근권_이동비율",
+            "목적지_HHI", "목적지_정규화엔트로피", "유효_목적지수", "최대_목적지비중",
+            "출근_유입량", "출근_유출량", "출근_유입유출비", "통근권_대표업무중심지_이름"]
     out = df[[c for c in keep if c in df.columns]].sort_values("통합부담_정기권_원")
     out.to_csv(OUT_PATH, index=False, encoding="utf-8-sig")
     print(f"\n저장 완료: {OUT_PATH} ({len(out)}행)")

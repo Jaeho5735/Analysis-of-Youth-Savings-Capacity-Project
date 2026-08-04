@@ -11,8 +11,13 @@
 사업체·종사자 수를 함께 쓰는 것이 정석이나 현재 미확보라, 확보되면 판정 결과를
 검증하는 용도로 붙인다.
 
-출근 유입량은 OD에서 내부통근(거주동=근무동)을 뺀 값이다. 같은 동 안에서 출퇴근하는
-사람은 유입도 유출도 아니어서 넣으면 양쪽이 동시에 부풀려진다.
+출근 유입·유출량은 **전체 OD 기준**을 쓴다. 누적 80%로 줄인 OD로 계산하면 잘려나간
+소수 흐름만큼 유입량이 과소 집계된다. 12번 노트북이 전체 OD로 산출한 값이
+`commute_burden_with_network_metrics.csv`에 들어 있으므로 그것을 우선 사용하고,
+없을 때만 보유한 OD 파일에서 직접 계산한다(이 경우 80% 컷 한계를 로그로 알린다).
+
+직접 계산할 때는 내부통근(거주동=근무동)을 뺀다. 같은 동 안에서 출퇴근하는 사람은
+유입도 유출도 아니어서 넣으면 양쪽이 동시에 부풀려진다.
 
 업무지구 소속 행정동은 판정 결과를 지리·기능 단위로 묶어 확정하며, 지구 안에서는
 유입량 비중을 가중치로 둬서 대표 통근시간·교통비를 가중평균할 때 쓴다.
@@ -32,7 +37,10 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 
-OD_PATH = DATA_DIR / "all_age_commute_od_selected_80.csv"
+NETWORK_PATH = DATA_DIR / "commute_burden_with_network_metrics.csv"
+_OD_CANDIDATES = ["all_age_commute_od_aggregated.csv", "all_age_commute_od_selected_80.csv"]
+OD_PATH = next((DATA_DIR / f for f in _OD_CANDIDATES if (DATA_DIR / f).exists()),
+               DATA_DIR / _OD_CANDIDATES[0])
 CROSSWALK_PATH = DATA_DIR / "행정동_기준코드표.csv"
 POP_PATH = DATA_DIR / "2023~2025_행정동별_청년생활인구_지표.csv"
 
@@ -72,27 +80,42 @@ EXCLUDED = {
     "풍납2동": "병원 중심 고용",
     "구의제3동": "행정·상업 혼합, 규모 작음",
     "목1동": "상업 중심",
+    "양평제2동": "준공업지역 제조·물류 중심, 여의도·영등포 통근권과 분리",
 }
 
 
 def build_workplace_score() -> pd.DataFrame:
-    for p in (OD_PATH, CROSSWALK_PATH):
-        if not p.exists():
-            sys.exit(f"{p} 이 없습니다.")
+    if not CROSSWALK_PATH.exists():
+        sys.exit(f"{CROSSWALK_PATH} 이 없습니다. build_region_master.py를 먼저 실행하세요.")
 
-    od = pd.read_csv(OD_PATH, encoding="utf-8-sig")
-    od["거주code8"] = od["거주동 코드"].astype(str).str.zfill(8)
-    od["근무code8"] = od["근무동 코드"].astype(str).str.zfill(8)
+    if NETWORK_PATH.exists():
+        net = pd.read_csv(NETWORK_PATH, encoding="utf-8-sig")
+        net["code8"] = net["거주동 코드"].astype(str).str.zfill(8)
+        flow = net.set_index("code8")[["출근_유입량", "출근_유출량", "출근_유입유출비"]].copy()
+        flow = flow.rename(columns={"출근_유입유출비": "유입유출비"})
+        flow["내부통근량"] = net.set_index("code8")["내부통근_출근량"]
+        flow["출근_순유입"] = flow["출근_유입량"] - flow["출근_유출량"]
+        print(f"유입·유출 출처: {NETWORK_PATH.name} (전체 OD 기준)")
+    else:
+        if not OD_PATH.exists():
+            sys.exit(f"{NETWORK_PATH.name} 도 {OD_PATH.name} 도 없습니다.")
+        if "selected_80" in OD_PATH.name:
+            print(f"[경고] {OD_PATH.name}은 누적 80% 컷 파일이라 유입량이 과소 집계된다.")
+            print("  전체 OD 또는 12번 네트워크 결합본을 쓰는 것이 정확하다.")
+        od = pd.read_csv(OD_PATH, encoding="utf-8-sig")
+        od["거주code8"] = od["거주동 코드"].astype(str).str.zfill(8)
+        od["근무code8"] = od["근무동 코드"].astype(str).str.zfill(8)
 
-    ext = od[od["거주code8"] != od["근무code8"]]
-    inflow = ext.groupby("근무code8")["출근_이동량"].sum().rename("출근_유입량")
-    outflow = ext.groupby("거주code8")["출근_이동량"].sum().rename("출근_유출량")
-    inner = (od[od["거주code8"] == od["근무code8"]]
-             .set_index("거주code8")["출근_이동량"].rename("내부통근량"))
+        ext = od[od["거주code8"] != od["근무code8"]]
+        inflow = ext.groupby("근무code8")["출근_이동량"].sum().rename("출근_유입량")
+        outflow = ext.groupby("거주code8")["출근_이동량"].sum().rename("출근_유출량")
+        inner = (od[od["거주code8"] == od["근무code8"]]
+                 .set_index("거주code8")["출근_이동량"].rename("내부통근량"))
 
-    flow = pd.concat([inflow, outflow, inner], axis=1).fillna(0)
-    flow["유입유출비"] = flow["출근_유입량"] / flow["출근_유출량"].replace(0, np.nan)
-    flow["출근_순유입"] = flow["출근_유입량"] - flow["출근_유출량"]
+        flow = pd.concat([inflow, outflow, inner], axis=1).fillna(0)
+        flow["유입유출비"] = flow["출근_유입량"] / flow["출근_유출량"].replace(0, np.nan)
+        flow["출근_순유입"] = flow["출근_유입량"] - flow["출근_유출량"]
+        print(f"유입·유출 출처: {OD_PATH.name} (직접 계산)")
 
     cw = pd.read_csv(CROSSWALK_PATH, encoding="utf-8-sig", dtype=str)
     need = ["행정동코드8", "행정동코드10", "시군구명", "행정동명", "권역"]
@@ -150,7 +173,7 @@ def build_districts(df: pd.DataFrame) -> pd.DataFrame:
                .sort_values("출근_유입량", ascending=False))
     print("\n[업무지구 요약]")
     print(summary.round(2).to_string())
-    print(f"\n8개 지구 합계가 서울 출근 유입의 {summary['서울출근유입_비중'].sum():.1f}%")
+    print(f"\n{len(summary)}개 지구 합계가 서울 출근 유입의 {summary['서울출근유입_비중'].sum():.1f}%")
 
     excluded_found = df[df["업무중심"] & df["업무지구"].isna()]
     print(f"\n[지구 미소속] 판정은 됐으나 제외한 {len(excluded_found)}개")

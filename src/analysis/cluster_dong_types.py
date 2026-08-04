@@ -35,8 +35,14 @@ YOUTH_PATH = YOUTH_CANDIDATES[0] if YOUTH_CANDIDATES else DATA_DIR / "청년1인
 OUT_RESULT = DATA_DIR / "행정동_유형화_결과.csv"
 OUT_PROFILE = DATA_DIR / "행정동_유형화_프로파일.csv"
 
-BASE_FEATURES = ["표면주거비_원", "대표_편도통근시간_분", "월교통비_실지출_원", "생활소비부담지수"]
+# 기획안 17-2의 군집 입력 변수 7개.
+# 목적지 집중도는 HHI 대신 정규화 엔트로피를 쓴다. HHI는 내부통근 비중과 상관 0.87로
+# 사실상 "자기 동에서 일한다"를 재고, 분포도 중앙 0.020 대 최대 0.208로 치우쳐 있다.
+# 정규화 엔트로피는 0.53~0.86으로 고르고 다른 변수와의 최대 상관도 0.66이다.
+BASE_FEATURES = ["표면주거비_원", "대표_편도통근시간_분", "월교통비_실지출_원",
+                 "생활소비부담지수", "동일통근권_내부출근비율", "목적지_정규화엔트로피"]
 YOUTH_FEATURE = "청년1인세대_비율"
+CORR_LIMIT = 0.8
 K_RANGE = range(3, 10)
 K_FIXED = 7                  # 실루엣 최댓값 대신 해석 가능성으로 확정
 WINSOR_Q = 0.01              # 교통비 극단치가 단독 군집을 만드는 것을 막는다
@@ -50,7 +56,11 @@ def load() -> tuple:
     df = pd.read_csv(BURDEN_PATH, encoding="utf-8-sig")
     df["행정동코드8"] = df["행정동코드8"].astype(str).str.zfill(8)
 
-    feats = list(BASE_FEATURES)
+    missing = [c for c in BASE_FEATURES if c not in df.columns]
+    if missing:
+        print(f"[안내] 입력에 없는 변수 {missing} - 제외하고 진행")
+        print("  통근권 변수가 없다면 build_total_burden.py가 11번 산출물만 읽은 것이다")
+    feats = [c for c in BASE_FEATURES if c in df.columns]
     if YOUTH_PATH.exists():
         print(f"청년 1인세대 파일: {YOUTH_PATH.name}")
         y = pd.read_csv(YOUTH_PATH, encoding="utf-8-sig")
@@ -122,27 +132,33 @@ def name_clusters(prof: pd.DataFrame, feats: list) -> dict:
         idx = z.loc[c, "생활소비부담지수"] if "생활소비부담지수" in feats else 0
         y = z.loc[c, YOUTH_FEATURE] if YOUTH_FEATURE in feats else 0
 
+        inner = z.loc[c, "동일통근권_내부출근비율"] if "동일통근권_내부출근비율" in feats else 0
+        div = z.loc[c, "목적지_정규화엔트로피"] if "목적지_정규화엔트로피" in feats else 0
+
+        # 가장 두드러진 축부터 본다. 여러 조건에 걸리면 편차가 큰 쪽이 그 유형의 성격이다.
         if fare > 1.0:
             nm = "교통비 부담형"
+        elif h > 1.0:
+            nm = "고주거비·근거리형" if t < 0 else "고주거비·장거리형"
         elif y > 1.0:
             nm = "청년 밀집형"
-        elif h > 0.5 and t > 0.5:
-            nm = "고주거비·장거리형"
-        elif h > 0.5 and t < 0:
-            nm = "고주거비·근거리형"
-        elif idx > 0.8:
+        elif idx > 1.0:
             nm = "생활소비 압박형"
-        elif h < -0.4 and t > 0.5:
-            nm = "저주거비·장거리형"
-        elif h < -0.3:
+        elif inner < -1.0:
+            nm = "통근권 외부의존형"
+        elif t > 0.8:
+            nm = "저주거비·장거리형" if h < 0 else "통근 부담형"
+        elif h < -0.6:
             nm = "상대적 저부담형"
-        elif t > 0.5:
-            nm = "통근 부담형"
+        elif inner > 0.8 and div < 0:
+            nm = "통근권 내부완결형"
         else:
             nm = "주거·통근 균형형"
+
         if nm in names.values():
-            # 같은 이름이 겹치면 주거비 수준으로 구분한다
-            nm = f"{nm}({'상위' if h > 0 else '하위'})"
+            # 같은 이름이 겹치면 그 유형 안에서 가장 차이 나는 축으로 구분한다
+            axis = max([("주거비", h), ("통근", t), ("청년", y), ("소비", idx)], key=lambda kv: abs(kv[1]))
+            nm = f"{nm}({axis[0]}{'↑' if axis[1] > 0 else '↓'})"
             n = 2
             base = nm
             while nm in names.values():
@@ -166,9 +182,11 @@ def main():
     Xtr = scaler.transform(train[feats])
 
     corr = train[feats].corr().abs()
-    high = [(a, b, corr.loc[a, b]) for i, a in enumerate(feats) for b in feats[i + 1:] if corr.loc[a, b] > 0.8]
+    high = [(a, b, corr.loc[a, b]) for i, a in enumerate(feats)
+            for b in feats[i + 1:] if corr.loc[a, b] > CORR_LIMIT]
+    print(f"\n[변수 상관] 최대 {corr.where(~np.eye(len(feats), dtype=bool)).max().max():.3f}")
     if high:
-        print("\n[경고] 상관 0.8 초과 변수쌍 - 하나를 빼는 것을 검토")
+        print(f"[경고] 상관 {CORR_LIMIT} 초과 쌍 - 같은 정보를 두 번 세게 되므로 하나를 빼야 한다")
         for a, b, v in high:
             print(f"  {a} ~ {b}: {v:.3f}")
 
