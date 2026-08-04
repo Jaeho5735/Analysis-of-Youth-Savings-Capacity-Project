@@ -23,13 +23,24 @@ def load_official_ref(path: Path) -> pd.DataFrame:
     return pd.read_csv(path, encoding="utf-8-sig", dtype={"행정동코드": str})
 
 
+# 중점류 문자 전부를 마침표로 통일한다. 상권분석서비스 일부 파일이
+# 가운뎃점(U+00B7 등)을 쓰는데, 공식 목록·KIKmix는 마침표를 쓴다.
+MIDDLE_DOTS = "\u00B7\u2027\u2219\u22C5\u30FB\u318D\uFF65"
+
+
 def fix_encoding_artifacts(value: str) -> str:
-    """원본 파일의 인코딩 손상으로 마침표(.)가 물음표(?)로 깨진 경우를 되돌린다.
-    (?<=\\d)\\?(?=\\d) 형태의 lookahead/lookbehind를 써서, "1?2?3?4"처럼 물음표가
-    연달아 있어도 숫자를 소모하지 않고 전부 독립적으로 치환한다."""
+    """원본 파일의 표기 손상·변이를 공식 표기(마침표)로 되돌린다.
+ 
+    1) 인코딩 손상으로 마침표(.)가 물음표(?)로 깨진 경우
+    2) 구분자로 마침표 대신 가운뎃점(·) 등 중점류 문자를 쓴 경우
+ 
+    둘 다 (?<=\\d)...(?=\\d) 형태의 lookahead/lookbehind를 쓴다. 숫자 사이에 낀
+    것만 바꾸므로 동 이름 본체에 우연히 같은 문자가 있어도 건드리지 않고,
+    "1?2?3?4"처럼 연달아 있어도 숫자를 소모하지 않아 전부 독립적으로 치환된다."""
     if not value or not isinstance(value, str):
         return value
-    return re.sub(r"(?<=\d)\?(?=\d)", ".", value)
+    value = re.sub(r"(?<=\d)\?(?=\d)", ".", value)
+    return re.sub(rf"(?<=\d)[{MIDDLE_DOTS}](?=\d)", ".", value)
 
 
 def normalize_dong_name(value: str, official_set: set) -> str:
