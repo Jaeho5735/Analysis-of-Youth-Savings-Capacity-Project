@@ -199,11 +199,24 @@ def main():
     df["군집"] = np.nan
     df.loc[~weak, "군집"] = km.labels_
     if weak.sum():
-        ok = df[weak][feats].notna().all(axis=1)
-        idx = df[weak][ok].index
-        if len(idx):
-            df.loc[idx, "군집"] = km.predict(scaler.transform(df.loc[idx, feats]))
+        idx = df[weak].index
+        missing = df.loc[idx, feats].isna()
+        if missing.any().any():
+            # 사후 배정 입력에서만 결측을 학습 평균으로 메운다(원본 컬럼 값은 그대로 둔다).
+            # feats 결측(예: 생활소비부담지수, 청년1인세대_비율 미매칭)까지 배정에서
+            # 빠지면 해당 동은 군집·유형이 완전히 비어 DB 적재(NOT NULL) 단계에서 깨진다.
+            n_imputed = missing.any(axis=1).sum()
+            print(f"  사후 배정 대상 중 {n_imputed}개 동은 feats 결측 -> 학습 평균으로 메워 배정")
+        X_assign = df.loc[idx, feats].fillna(train[feats].mean())
+        df.loc[idx, "군집"] = km.predict(scaler.transform(X_assign))
     df["군집_사후배정"] = weak & df["군집"].notna()
+
+    # 사후배정 안에서도 성격이 다른 두 종류를 구분한다.
+    #   군집_사후배정 = 실측값은 다 있으나 표본이 부실해 학습에서 뺀 동
+    #   유형_결측대입 = 입력 변수 자체가 없어 학습 평균으로 메워 배정한 동
+    # 후자는 없는 값을 가정한 결과라 화면·발표에서 "참고용"으로 구분해야 한다.
+    # 신설동·용두동(2025-07-01 신설)처럼 데이터가 없는 게 정상인 동이 여기 들어간다.
+    df["유형_결측대입"] = df[feats].isna().any(axis=1) & df["군집"].notna()
     df["군집"] = df["군집"].astype("Int64")
 
     prof = profile(train, feats)
@@ -219,11 +232,19 @@ def main():
         sub = train[train["군집"] == c].nsmallest(4, "통합부담_정기권_원")
         print(f"  {nm} ({(train['군집']==c).sum()}개): {', '.join(sub['행정동명_최종'])}")
 
+    if df["유형_결측대입"].any():
+        sub = df[df["유형_결측대입"]]
+        print(f"\n[유형_결측대입] {len(sub)}개 동 - 입력 변수 결측을 학습 평균으로 메워 배정")
+        print("  없는 값을 가정한 결과이므로 서비스·발표에서 참고용으로 구분할 것")
+        for _, r in sub.iterrows():
+            miss = [c for c in feats if pd.isna(r[c])]
+            print(f"  {r['행정동명_최종']}: {r['행정동_유형']} (결측 {len(miss)}개: {', '.join(miss)})")
+
     print("\n[유형 x 부담유형 교차]")
     print(pd.crosstab(df["행정동_유형"], df["부담유형"]).to_string())
 
     keep = (["행정동코드8", "시군구명", "행정동명_최종", "권역", "군집", "행정동_유형", "군집_사후배정",
-             "부담유형"] + feats +
+             "유형_결측대입", "부담유형"] + feats +
             ["월교통비_원본_원", "교통비_윈저라이징", "통합부담_정기권_원", "월세착시_순위차",
              "표본부족", "업종부족", "교통비_커버리지부족", "청년세대_저표본"])
     df[[c for c in keep if c in df.columns]].to_csv(OUT_RESULT, index=False, encoding="utf-8-sig")
