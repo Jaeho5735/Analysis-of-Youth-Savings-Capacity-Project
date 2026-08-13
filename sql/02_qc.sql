@@ -15,7 +15,8 @@ FROM (
     UNION ALL SELECT 'dim_business_district', COUNT(*),      9 FROM dim_business_district
     UNION ALL SELECT 'bridge_district_dong',  COUNT(*),     40 FROM bridge_district_dong
     UNION ALL SELECT 'fact_dong_burden',      COUNT(*),    420 FROM fact_dong_burden
-    UNION ALL SELECT 'fact_dong_type',        COUNT(*),    420 FROM fact_dong_type
+    UNION ALL SELECT 'fact_dong_type',        COUNT(*),    427 FROM fact_dong_type
+    UNION ALL SELECT 'fact_dong_type_features', COUNT(*),  427 FROM fact_dong_type_features
     UNION ALL SELECT 'fact_commute_od',       COUNT(*), 164032 FROM fact_commute_od
     UNION ALL SELECT 'fact_commute_route',    COUNT(*),  30636 FROM fact_commute_route
     UNION ALL SELECT 'fact_rent_transaction', COUNT(*), 577745 FROM fact_rent_transaction
@@ -86,13 +87,33 @@ FROM (
 ) z WHERE rank_burden_src <> rank_sql;
 
 
-SELECT '===== QC6. 결측 대입 동 (5개여야 정상) =====' AS '';
+SELECT '===== QC6. 유형화 상태 =====' AS '';
 
-SELECT r.sigungu_name, r.dong_name, t.type_name, t.assign_method
+-- 유형 6개 + 데이터부족 7개
+SELECT COALESCE(type_name, '(데이터 부족)') AS 유형,
+       COUNT(*) AS 동수,
+       SUM(flag_boundary) AS 경계모호,
+       ROUND(AVG(max_membership), 3) AS 평균소속확률
+FROM fact_dong_type
+WHERE k_value = 6
+GROUP BY type_name
+ORDER BY 동수 DESC;
+
+-- 데이터 부족 7개 동 (전부 대단지 아파트 지역이라 비아파트 임차 거래 없음)
+SELECT r.sigungu_name, r.dong_name, t.missing_columns
 FROM fact_dong_type t
 JOIN dim_region r ON r.dong_code8 = t.dong_code8
-WHERE t.flag_imputed = 1
+WHERE t.flag_insufficient = 1
 ORDER BY r.sigungu_name;
+
+-- 표면주거비 집계 일치 확인
+-- fact_dong_burden(파이프라인 산출)과 유형화 입력값이 크게 다르면 집계 기준이 어긋난 것
+SELECT COUNT(*) AS 대상동수,
+       SUM(ABS(b.surface_housing_cost - f.surface_housing_cost) > 10000) AS 만원이상_차이,
+       ROUND(AVG(ABS(b.surface_housing_cost - f.surface_housing_cost))) AS 평균차이
+FROM fact_dong_burden b
+JOIN fact_dong_type_features f ON f.dong_code8 = b.dong_code8
+WHERE f.surface_housing_cost IS NOT NULL;
 
 
 SELECT '===== QC7. 한글·금액 단위 육안 확인 =====' AS '';

@@ -9,6 +9,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS fact_rent_transaction;
 DROP TABLE IF EXISTS fact_commute_route;
 DROP TABLE IF EXISTS fact_commute_od;
+DROP TABLE IF EXISTS fact_dong_type_features;
 DROP TABLE IF EXISTS fact_dong_type;
 DROP TABLE IF EXISTS fact_dong_burden;
 DROP TABLE IF EXISTS bridge_district_dong;
@@ -115,16 +116,48 @@ CREATE TABLE fact_dong_burden (
     CONSTRAINT fk_burden_region FOREIGN KEY (dong_code8) REFERENCES dim_region (dong_code8)
 ) ENGINE=InnoDB;
 
+-- 행정동 유형화 (FuzzyCMeans k=6, 427행)
+--
+-- 427행 전체를 넣는다. 유형이 없는 7개 동도 행은 존재하고 type_name 만 NULL 이다.
+-- 빼버리면 서비스에서 "왜 이 동은 조회가 안 되나"를 구분할 수 없다.
+-- 데이터 부족인지 코드 오류인지는 flag_insufficient 로 판별한다.
+--
+-- 군집 변수는 5개(부담 3 + 구조 2). 청년1인세대비율과 생활소비부담지수는
+-- 군집에 넣지 않고 사후 해석에만 쓴다 - 둘 다 부담구조의 원인이 아니라 결과라,
+-- 넣으면 "청년이 많아서 청년밀집형" 같은 동어반복이 된다.
 CREATE TABLE fact_dong_type (
-    dong_code8    CHAR(8)     NOT NULL,
-    k_value       TINYINT     NOT NULL DEFAULT 7,
-    cluster_id    TINYINT         NULL,
-    type_name     VARCHAR(40) NOT NULL,
-    assign_method ENUM('train','post') NOT NULL,
-    flag_imputed  TINYINT(1)  NOT NULL DEFAULT 0 COMMENT '입력변수 결측을 평균으로 메워 배정 - 참고용 표시 필요',
+    dong_code8         CHAR(8)      NOT NULL,
+    k_value            TINYINT      NOT NULL DEFAULT 6,
+    cluster_id         TINYINT          NULL COMMENT '데이터 부족 동은 NULL',
+    type_name          VARCHAR(40)      NULL COMMENT '데이터 부족 동은 NULL',
+    -- FuzzyCMeans 소속도. 경계에 걸친 동을 서비스에서 구분하기 위한 값
+    max_membership     DECIMAL(6,4)     NULL COMMENT '최대 소속확률. 낮을수록 두 유형 성격을 함께 가짐',
+    flag_boundary      TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '군집경계 모호(63개). 유형 단정 금지',
+    -- 데이터 부족 표시. kNN 대체를 하지 않기로 해 결측을 그대로 남긴다
+    flag_insufficient  TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '유형화 데이터부족(7개). 추천 후보에서 제외',
+    missing_count      TINYINT      NOT NULL DEFAULT 0,
+    missing_columns    VARCHAR(200)     NULL COMMENT '결측 변수명',
     PRIMARY KEY (dong_code8, k_value),
+    KEY idx_type_cluster (k_value, cluster_id),
     CONSTRAINT fk_type_region FOREIGN KEY (dong_code8) REFERENCES dim_region (dong_code8)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB COMMENT='행정동 유형화 결과 (군집 변수 5개, 사후해석 변수는 fact_dong_burden 참조)';
+
+-- 군집 입력 변수 스냅샷. 유형화에 실제로 들어간 값을 그대로 보관한다.
+-- fact_dong_burden 에도 같은 이름의 컬럼이 있지만 집계 기준이 다를 수 있어
+-- (표면주거비는 거래단위 pooled 중앙값) 재현성을 위해 따로 둔다.
+CREATE TABLE fact_dong_type_features (
+    dong_code8              CHAR(8)      NOT NULL,
+    surface_housing_cost    DECIMAL(12,2)    NULL COMMENT '거래단위 pooled 중앙값',
+    txn_count               INT              NULL COMMENT '표면주거비 산출 거래수',
+    oneway_commute_min      DECIMAL(8,4)     NULL,
+    monthly_transport_cost  DECIMAL(12,2)    NULL,
+    zone_internal_ratio     DECIMAL(8,6)     NULL,
+    dest_entropy            DECIMAL(8,6)     NULL,
+    dest_hhi                DECIMAL(8,6)     NULL COMMENT '보조지표. 내부통근비중과 상관 0.87이라 군집 미사용',
+    youth_single_ratio      DECIMAL(6,2)     NULL COMMENT '사후해석용(%). 군집 미사용',
+    PRIMARY KEY (dong_code8),
+    CONSTRAINT fk_typefeat_region FOREIGN KEY (dong_code8) REFERENCES dim_region (dong_code8)
+) ENGINE=InnoDB COMMENT='군집 입력 변수 스냅샷 (재현성)';
 
 -- 출근 OD 전체 + 80%컷 병합
 CREATE TABLE fact_commute_od (
