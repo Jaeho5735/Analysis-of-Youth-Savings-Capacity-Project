@@ -21,7 +21,7 @@ QUARANTINE_DIR = PROJECT_ROOT / "data" / "quarantine"
 
 LOAD_ORDER = [
     "dim_region", "dim_business_district", "bridge_district_dong",
-    "fact_dong_burden", "fact_dong_type",
+    "fact_dong_burden", "fact_dong_type", "fact_dong_type_features",
     "fact_commute_od", "fact_commute_route", "fact_rent_transaction",
 ]
 
@@ -122,9 +122,10 @@ def main():
     center["dong_code8"] = center["행정동코드8"].astype(str).str.zfill(8)
     center = center[["dong_code8", "주야간_인구비", "업무중심"]]
 
-    typ = read("행정동_유형화_결과.csv")
-    typ["dong_code8"] = typ["행정동코드8"].astype(str).str.zfill(8)
-    youth = typ[["dong_code8", "청년1인세대_비율"]]
+    # 청년1인세대비율은 유형화 산출물에서 가져온다(군집 변수는 아니고 사후해석용)
+    youth_src = read("dong_typology_final.csv")
+    youth_src["dong_code8"] = code10_to_8(youth_src["행정동코드"])
+    youth = youth_src[["dong_code8", "청년1인세대_비율"]]
 
     m = burden.merge(center, on="dong_code8", how="left").merge(youth, on="dong_code8", how="left")
     m = quarantine(m, m["dong_code8"].isin(valid), "fact_dong_burden", None)
@@ -153,20 +154,42 @@ def main():
     })
     insert(eng, fact_burden, "fact_dong_burden")
 
-    # 4. fact_dong_type
+    # 4. fact_dong_type + features (dong_typology_final.csv, 427행)
+    #    팀원A의 FuzzyCMeans k=6 결과. 427행 전체를 넣고 유형 없는 7개 동은
+    #    type_name NULL + flag_insufficient=1 로 남긴다. 빼면 서비스에서
+    #    "데이터 부족"인지 "코드 오류"인지 구분할 수 없다.
     print("[fact_dong_type]")
+    typo = read("dong_typology_final.csv")
+    typo["dong_code8"] = code10_to_8(typo["행정동코드"])
+    typo = quarantine(typo, typo["dong_code8"].isin(valid), "fact_dong_type", None)
+
     fact_type = pd.DataFrame({
-        "dong_code8": typ["dong_code8"],
-        "k_value": 7,
-        "cluster_id": typ["군집"],
-        "type_name": typ["행정동_유형"],
-        "assign_method": typ["군집_사후배정"].map({True: "post", False: "train"}),
-        # 입력 변수 자체가 없어 학습 평균으로 메워 배정된 동. 서비스에서 참고용 표시가 필요하다.
-        "flag_imputed": (typ["유형_결측대입"].fillna(False).astype(int)
-                         if "유형_결측대입" in typ.columns else 0),
+        "dong_code8": typo["dong_code8"],
+        "k_value": 6,
+        "cluster_id": typo["군집"],
+        "type_name": typo["행정동_유형"],
+        "max_membership": typo["최대소속확률"],
+        # 데이터 부족 동은 경계 판정 자체가 없으므로 0 으로 채운다
+        "flag_boundary": typo["군집경계_모호"].fillna(False).astype(bool).astype(int),
+        "flag_insufficient": typo["유형화_데이터부족"].fillna(False).astype(bool).astype(int),
+        "missing_count": typo["유형화_결측수"].fillna(0).astype(int),
+        "missing_columns": typo["유형화_결측목록"],
     })
-    fact_type = quarantine(fact_type, fact_type["dong_code8"].isin(valid), "fact_dong_type", None)
     insert(eng, fact_type, "fact_dong_type")
+
+    print("[fact_dong_type_features]")
+    feat = pd.DataFrame({
+        "dong_code8": typo["dong_code8"],
+        "surface_housing_cost": typo["표면주거비_원"],
+        "txn_count": typo["표면주거비_거래수"],
+        "oneway_commute_min": typo["대표_편도통근시간_분"],
+        "monthly_transport_cost": typo["월통근교통비_원"],
+        "zone_internal_ratio": typo["동일통근권_내부출근비율"],
+        "dest_entropy": typo["목적지_정규화엔트로피"],
+        "dest_hhi": typo["목적지_HHI"],
+        "youth_single_ratio": typo["청년1인세대_비율"],
+    })
+    insert(eng, feat, "fact_dong_type_features")
 
     # 5. fact_commute_od (전체 + 80%컷 병합)
     print("[fact_commute_od]")

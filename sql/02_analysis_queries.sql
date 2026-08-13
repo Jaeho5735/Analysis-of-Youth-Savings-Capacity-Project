@@ -15,7 +15,7 @@ USE multicam;
 -- QC1. 테이블별 행수 - 기대치와 대조
 SELECT 'dim_region' AS tbl, COUNT(*) AS cnt, 427 AS expected FROM dim_region
 UNION ALL SELECT 'fact_dong_burden', COUNT(*), 420 FROM fact_dong_burden
-UNION ALL SELECT 'fact_dong_type',   COUNT(*), 420 FROM fact_dong_type WHERE k_value = 7
+UNION ALL SELECT 'fact_dong_type',   COUNT(*), 427 FROM fact_dong_type WHERE k_value = 6
 UNION ALL SELECT 'dim_business_district', COUNT(*), 9 FROM dim_business_district
 UNION ALL SELECT 'bridge_district_dong', COUNT(*), 40 FROM bridge_district_dong
 UNION ALL SELECT 'fact_commute_od', COUNT(*), 164860 FROM fact_commute_od
@@ -134,10 +134,12 @@ scored AS (
         r.dong_name,
         b.surface_housing_cost,
         ROUND(dc.commute_min, 1)                                        AS commute_min,
-        LEAST(ROUND(dc.oneway_fare) * 2 * p.work_days, p.pass_cap)      AS monthly_transport,
+        -- 요금 결측(도보통근 등)은 0이 아니라 정기권 캡으로 본다.
+        -- NULL 그대로 두면 total_burden 전체가 NULL이 되어 후보에서 조용히 사라진다.
+        COALESCE(LEAST(ROUND(dc.oneway_fare) * 2 * p.work_days, p.pass_cap), p.pass_cap) AS monthly_transport,
         ROUND(dc.commute_min * 2 * p.work_days / 60 * p.wage)           AS monthly_time_cost,
         b.surface_housing_cost
-          + LEAST(ROUND(dc.oneway_fare) * 2 * p.work_days, p.pass_cap)
+          + COALESCE(LEAST(ROUND(dc.oneway_fare) * 2 * p.work_days, p.pass_cap), p.pass_cap)
           + ROUND(dc.commute_min * 2 * p.work_days / 60 * p.wage)       AS total_burden,
         dc.route_coverage,
         t.type_name
@@ -145,7 +147,9 @@ scored AS (
     JOIN candidate        c ON c.dong_code8 = dc.home_code8 AND c.youth_decile > 1
     JOIN fact_dong_burden b ON b.dong_code8 = dc.home_code8
     JOIN dim_region       r ON r.dong_code8 = dc.home_code8
-    LEFT JOIN fact_dong_type t ON t.dong_code8 = dc.home_code8 AND t.k_value = 7
+    LEFT JOIN fact_dong_type t ON t.dong_code8 = dc.home_code8 AND t.k_value = 6
+    -- 유형화 데이터가 없는 7개 동(대단지 아파트 지역)은 추천 후보에서 제외한다.
+    -- 비아파트 임차 매물이 없어 사용자가 실제로 방을 구할 수 없다.
     CROSS JOIN params p
     WHERE dc.route_coverage >= 0.7          -- 지구 구성동 경로 확보율
 ),
@@ -179,7 +183,7 @@ top10 AS (
                ROW_NUMBER() OVER (
                    PARTITION BY dc.district_id
                    ORDER BY b.surface_housing_cost
-                          + LEAST(ROUND(dc.oneway_fare) * 2 * p.work_days, p.pass_cap)
+                          + COALESCE(LEAST(ROUND(dc.oneway_fare) * 2 * p.work_days, p.pass_cap), p.pass_cap)
                           + ROUND(dc.commute_min * 2 * p.work_days / 60 * p.wage)
                ) AS rn
         FROM v_district_commute dc
@@ -246,12 +250,13 @@ SELECT
     ROUND(AVG(b.monthly_transport_cost))              AS 평균_교통비,
     ROUND(AVG(b.consumption_index), 2)                AS 평균_소비지수,
     ROUND(AVG(b.youth_single_ratio) * 100, 1)         AS 청년1인세대_pct,
-    SUM(t.assign_method = 'post')                     AS 사후배정_동수,
+    SUM(t.flag_boundary)                              AS 경계모호_동수,
+    ROUND(AVG(t.max_membership), 3)                   AS 평균소속확률,
     GROUP_CONCAT(DISTINCT r.region_group ORDER BY r.region_group SEPARATOR ',') AS 분포권역
 FROM fact_dong_type t
 JOIN fact_dong_burden b ON b.dong_code8 = t.dong_code8
 JOIN dim_region       r ON r.dong_code8 = t.dong_code8
-WHERE t.k_value = 7
+WHERE t.k_value = 6
 GROUP BY t.type_name
 ORDER BY 동수 DESC;
 
@@ -280,3 +285,70 @@ JOIN dim_policy p
  AND (p.income_max     IS NULL OR p.income_max    >= 2800000) -- 사용자 소득 파라미터
 WHERE r.dong_name = '노량진제1동'
 ORDER BY p.category, COALESCE(p.benefit_amount, 0) DESC;
+
+
+-- =====================================================================
+-- [Q7] 추천 전환점 - 주거비 10만원을 아끼려면 통근시간이 몇 분 늘어나는가
+--
+-- 지금까지의 분석은 "월세착시가 있다"까지만 말한다. Q7은 그 교환비를
+-- 숫자로 만든다. 사용자가 실제로 묻는 것은 "얼마나 더 가야 하나"다.
+--
+-- 근무지구별로 후보동을 주거비 순으로 놓고 회귀 기울기를 낸다.
+--   기울기 = Σ(x-x̄)(y-ȳ) / Σ(x-x̄)²   (x=주거비, y=편도통근분)
+--   전환점 = 기울기 × -100,000  ->  주거비 10만원 절감당 편도 증가분(분)
+--
+-- 음수 기울기가 정상이다(싼 동네일수록 멀다). 양수면 그 지구는
+-- 주거비와 통근이 역행하지 않는다는 뜻이라 별도 해석이 필요하다.
+-- 기법: CTE + 윈도우 집계(AVG OVER)로 편차 계산
+-- =====================================================================
+WITH base AS (
+    SELECT dc.district_id, dc.district_name,
+           dc.home_code8,
+           b.surface_housing_cost AS x,
+           dc.commute_min         AS y
+    FROM v_district_commute dc
+    JOIN fact_dong_burden b ON b.dong_code8 = dc.home_code8
+    JOIN fact_dong_type   t ON t.dong_code8 = dc.home_code8 AND t.k_value = 6
+    WHERE dc.route_coverage >= 0.7
+      AND b.surface_housing_cost IS NOT NULL
+      AND b.flag_small_sample = 0
+      AND t.flag_insufficient = 0
+),
+dev AS (
+    SELECT district_name,
+           x - AVG(x) OVER (PARTITION BY district_id) AS dx,
+           y - AVG(y) OVER (PARTITION BY district_id) AS dy
+    FROM base
+)
+SELECT
+    district_name                                   AS 근무지구,
+    COUNT(*)                                        AS 후보동수,
+    ROUND(SUM(dx * dy) / SUM(dx * dx) * -100000, 1) AS 전환점_분per10만원,
+    ROUND(SUM(dx * dy) / SUM(dx * dx) * -100000
+          * 2 * 21 / 60 * 10320)                    AS 시간비용_증가액_원,
+    CASE WHEN SUM(dx * dy) / SUM(dx * dx) < 0 THEN '정상(싼 동네일수록 멀다)'
+         ELSE '역행 - 해석 주의' END                AS 판정
+FROM dev
+GROUP BY district_name
+ORDER BY 전환점_분per10만원 DESC;
+
+
+-- Q7b. 서울 전체 기준 전환점 (근무지 구분 없이)
+-- 발표 한 줄용: "주거비 10만원을 아끼면 편도 N분이 늘어난다"
+WITH d AS (
+    SELECT surface_housing_cost - AVG(surface_housing_cost) OVER () AS dx,
+           oneway_commute_min   - AVG(oneway_commute_min)   OVER () AS dy
+    FROM fact_dong_burden
+    WHERE surface_housing_cost IS NOT NULL
+      AND oneway_commute_min IS NOT NULL
+      AND flag_small_sample = 0
+)
+SELECT COUNT(*)                                        AS 대상동수,
+       ROUND(SUM(dx * dy) / SUM(dx * dx) * -100000, 1) AS 전환점_분per10만원,
+       ROUND(SUM(dx * dy) / SUM(dx * dx) * -100000
+             * 2 * 21 / 60 * 10320)                    AS 시간비용_증가액_원,
+       -- 10만원 아끼고 시간비용이 얼마나 늘어나는지. 10만원보다 크면 손해다.
+       CASE WHEN ABS(SUM(dx * dy) / SUM(dx * dx) * -100000 * 2 * 21 / 60 * 10320) > 100000
+            THEN '평균적으로 손해 - 월세착시가 일반적'
+            ELSE '평균적으로는 이득 - 착시는 일부 지역 현상' END AS 해석
+FROM d;

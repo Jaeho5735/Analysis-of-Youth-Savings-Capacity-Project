@@ -88,8 +88,8 @@ CSV 8종을 읽어 MySQL 테이블 9개에 넣는다. FK 의존 순서대로 돌
 |---|---|
 | `행정동_기준코드표.csv` | `dim_region` |
 | `업무지구_정의.csv` | `dim_business_district` + `bridge_district_dong` |
-| `주거통근_통합부담_행정동별.csv` + `업무중심성_행정동별.csv` + `행정동_유형화_결과.csv` | `fact_dong_burden` |
-| `행정동_유형화_결과.csv` | `fact_dong_type` |
+| `주거통근_통합부담_행정동별.csv` + `업무중심성_행정동별.csv` + `dong_typology_final.csv` | `fact_dong_burden` |
+| `dong_typology_final.csv` | `fact_dong_type` + `fact_dong_type_features` |
 | `all_age_commute_od_aggregated.csv` + `all_age_commute_od_selected_80.csv` | `fact_commute_od` |
 | `commute_routes_analysis_ready.csv` | `fact_commute_route` |
 | `표면주거비_거래단위.csv` | `fact_rent_transaction` |
@@ -117,12 +117,15 @@ CSV 8종을 읽어 MySQL 테이블 9개에 넣는다. FK 의존 순서대로 돌
 | `dim_business_district` | 9 | — |
 | `bridge_district_dong` | 40 | — |
 | `fact_dong_burden` | 420 | — |
-| `fact_dong_type` | 420 | — |
+| `fact_dong_type` | 427 | — |
+| `fact_dong_type_features` | 427 | — |
 | `fact_commute_od` | 164,032 | 828 |
 | `fact_commute_route` | 30,636 | 203 |
 | `fact_rent_transaction` | 577,745 | 16 |
 
 QC 7종 전항목 통과. 순위 재현 불일치 10개는 표면주거비 INT 반올림 차이로 diff가 전부 ±1이었다.
+
+유형화 결과는 팀원A의 FuzzyCMeans k=6 산출물(`dong_typology_final.csv`)을 쓴다. 427행 전체를 넣고 유형이 없는 7개 동은 `type_name` NULL + `flag_insufficient=1`로 남긴다. 군집 입력 변수는 `fact_dong_type_features`에 스냅샷으로 따로 보관하는데, 집계 기준이 다를 수 있어(표면주거비는 거래단위 pooled 중앙값) 재현성을 위해서다.
 
 ## 요약
 
