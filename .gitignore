@@ -19,3 +19,10 @@ venv/
 # 에디터/OS
 .vscode/
 .DS_Store
+
+# web (LOCA 서비스 화면)
+web/**/*.bak
+web/__pycache__/
+web/**/__pycache__/
+web/.env
+web/scratch/

@@ -1,0 +1,123 @@
+{
+  "brand": {
+    "name": "LOCA",
+    "href": "/"
+  },
+  "nav": [
+    {
+      "label": "현재 부담 진단",
+      "href": "/diagnosis",
+      "active": false
+    },
+    {
+      "label": "대안 탐색",
+      "href": "/explore",
+      "active": true
+    },
+    {
+      "label": "상세 비교",
+      "href": "/compare",
+      "active": false
+    }
+  ],
+  "hero": {
+    "title_plain_1": "현재 생각 중인 ",
+    "title_accent": "거주지",
+    "title_plain_2": "가 있나요?",
+    "description_line1": "내가 생각한 후보를 같은 직장(삼정KPMG) 기준으로",
+    "description_line2": "비교해드려요. 지금 입력하고 대안을 탐색해보세요.",
+    "search": {
+      "value": "신길1동",
+      "placeholder": "동/읍/면 단위로 입력해보세요",
+      "submit_label": "현재 집과 비교하기 →",
+      "submit_href": "/explore/result"
+    }
+  },
+  "baseline": {
+    "title": "현재 기준",
+    "title_note": "(비교 대상)",
+    "rows": [
+      {
+        "icon": "work",
+        "label": "직장",
+        "value": "삼정KPMG",
+        "unit": "",
+        "strong": false
+      },
+      {
+        "icon": "home",
+        "label": "현재 거주지",
+        "value": "잠원동 (현재)",
+        "unit": "",
+        "strong": false
+      }
+    ],
+    "metrics": [
+      {
+        "icon": "rent",
+        "label": "주거비",
+        "value": "77.9",
+        "unit": "만 원"
+      },
+      {
+        "icon": "commute",
+        "label": "편도 통근",
+        "value": "17.2",
+        "unit": "분"
+      },
+      {
+        "icon": "fare",
+        "label": "월 교통비",
+        "value": "9.4",
+        "unit": "만 원"
+      },
+      {
+        "icon": "commute",
+        "label": "통근시간 가치",
+        "value": "12.4",
+        "unit": "만 원"
+      }
+    ],
+    "total": {
+      "label": "총부담",
+      "label_note": "(주거비 + 교통비 + 통근시간 가치)",
+      "value": "99.8",
+      "unit": "만 원"
+    }
+  },
+  "compare": {
+    "eyebrow": "LOCA가 비교해드릴게요",
+    "title_parts": [
+      {
+        "text": "내가 생각한 후보 ",
+        "accent": false
+      },
+      {
+        "text": "검증",
+        "accent": true
+      },
+      {
+        "text": " + LOCA가 찾아준 ",
+        "accent": false
+      },
+      {
+        "text": "대안",
+        "accent": true
+      }
+    ],
+    "description": "같은 직장(삼정KPMG) 기준으로 주거비, 통근시간, 교통비, 총부담까지 한눈에 비교해보세요.",
+    "empty": {
+      "title": "비교 결과가 여기에 표시됩니다",
+      "description": "주소를 입력하고 '현재 집과 비교하기'를 눌러주세요."
+    }
+  },
+  "faq": {
+    "title": "LOCA에게 물어보세요",
+    "avatar": "images/p4-circle-mascot.png",
+    "questions": [
+      "신길1동은 왜 많이 찾는 후보예요?",
+      "이 세 지역은 어떤 기준으로 추천하나요?",
+      "통근시간이 짧은 후보를 우선해서 보고 싶어요"
+    ]
+  }
+}

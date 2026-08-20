@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LOCA · 상세 비교</title>
+<link rel="stylesheet" href="static/loca_common.css">
+<style>
+  /* 공통 토큰·상단바·하단바는 static/loca_common.css 사용 */
+  .faq-panel { --faq-cols: 4; }
+
+  /* ── 히어로 ─────────────────────────────── */
+  .hero {
+    background: linear-gradient(100deg, #eaf5f5 0%, #f2f9f9 34%, #fcfdfd 52%, #fdfefe 100%);
+    border-radius: 20px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 1.05fr);
+    align-items: center;
+    gap: 12px;
+    padding: 34px 0 34px 34px;
+    overflow: hidden;
+  }
+  .hero-title {
+    font-size: clamp(28px, 3vw, 40px);
+    font-weight: 800;
+    line-height: 1.3;
+    margin: 0 0 16px;
+  }
+  .hero-title .accent { color: var(--teal-500); }
+  .hero-desc {
+    font-size: 14.5px;
+    line-height: 1.75;
+    color: var(--text-mid);
+    margin: 0;
+    white-space: pre-line;
+  }
+  .hero-art { min-width: 0; display: flex; justify-content: flex-end; }
+  .hero-art img { width: 100%; height: auto; display: block; }
+
+  /* ── 비교 표 ─────────────────────────────── */
+  .panel {
+    background: var(--card-white);
+    border: 1px solid rgba(20, 65, 62, 0.08);
+    border-radius: 18px;
+    padding: 22px 24px;
+    margin-top: 20px;
+  }
+  .compare-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  .compare-table th, .compare-table td {
+    padding: 13px 14px;
+    text-align: center;
+    font-size: 15px;
+    border-bottom: 1px solid rgba(20, 65, 62, 0.07);
+  }
+  .compare-table thead th {
+    padding: 14px 12px 16px;
+    border-bottom: 1px solid rgba(20, 65, 62, 0.1);
+  }
+  .compare-table thead th:nth-child(1) { background: #f3f8f8; border-radius: 12px 0 0 0; }
+  .compare-table thead th:nth-child(2) { background: #e6f3f2; }
+  .compare-table thead th:nth-child(3) { background: #eef5fb; }
+  .compare-table thead th:nth-child(4) { background: #eef3fb; }
+  .compare-table thead th:nth-child(5) { background: #f1effa; border-radius: 0 12px 0 0; }
+  .compare-table tbody td:nth-child(2) { background: #fbfdfd; }
+  .compare-table tbody tr:last-child td { border-bottom: none; }
+  .col-head-label {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--text-mid);
+  }
+  .col-sub {
+    font-size: 13px;
+    color: var(--text-mid);
+    margin-bottom: 2px;
+  }
+  .col-name {
+    font-size: 19px;
+    font-weight: 800;
+  }
+  .col-name.current { color: var(--text-dark); }
+  .col-name.cand1 { color: var(--teal-700); }
+  .col-name.cand2 { color: #2f6bc4; }
+  .col-name.cand3 { color: #6f5cc0; }
+  .col-type {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: var(--card-white);
+    margin-bottom: 8px;
+  }
+  .col-type.cand1 { color: var(--teal-700); border: 1px solid #bde2de; }
+  .col-type.cand2 { color: #2f6bc4; border: 1px solid #c6d6f2; }
+  .col-type.cand3 { color: #6f5cc0; border: 1px solid #d3caf0; }
+  .row-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14.5px;
+    font-weight: 600;
+    color: var(--text-mid);
+    text-align: left;
+  }
+  .row-label img { width: 19px; height: auto; flex-shrink: 0; }
+  .cell-value { font-weight: 700; }
+  .compare-table tr.delta td { font-size: 16px; font-weight: 800; }
+  .compare-table tr.delta td:nth-child(3) { color: var(--teal-700); }
+  .compare-table tr.delta td:nth-child(4) { color: var(--teal-700); }
+  .compare-table tr.delta td:nth-child(5) { color: var(--teal-700); }
+
+  /* ── 차트 + 교통 비교 ───────────────────── */
+  .split-row {
+    display: grid;
+    grid-template-columns: minmax(0, 0.68fr) minmax(0, 1.32fr);
+    gap: 20px;
+    margin-top: 20px;
+  }
+  .panel.flush { margin-top: 0; }
+  .panel-head {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .panel-title {
+    font-size: 17px;
+    font-weight: 800;
+    margin: 0;
+  }
+  .chart-legend {
+    display: flex;
+    gap: 14px;
+    margin-left: auto;
+    flex-wrap: wrap;
+  }
+  .chart-legend .item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: var(--text-mid);
+    font-weight: 600;
+  }
+  .chart-legend .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .chart-unit { font-size: 11.5px; color: var(--text-light); }
+
+  .chart {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    grid-template-rows: 200px auto;
+    gap: 6px 4px;
+    margin-top: 12px;
+  }
+  .chart-axis {
+    position: relative;
+    font-size: 11px;
+    color: var(--text-light);
+  }
+  .chart-axis span {
+    position: absolute;
+    right: 4px;
+    transform: translateY(-50%);
+  }
+  .chart-plot {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: end;
+    gap: 18px;
+    border-left: 1px solid rgba(20, 65, 62, 0.14);
+    border-bottom: 1px solid rgba(20, 65, 62, 0.14);
+    padding: 0 10px;
+    position: relative;
+  }
+  .chart-gridline {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 1px dashed rgba(20, 65, 62, 0.08);
+  }
+  .bar {
+    display: flex;
+    flex-direction: column-reverse;
+    justify-content: flex-start;
+    width: 100%;
+    max-width: 62px;
+    margin: 0 auto;
+  }
+  .bar-seg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 700;
+    min-height: 16px;
+  }
+  .bar-seg:last-child { border-radius: 5px 5px 0 0; }
+  .chart-labels {
+    grid-column: 2;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 18px;
+    padding: 0 10px;
+    text-align: center;
+  }
+  .chart-labels .name { font-size: 12.5px; font-weight: 700; }
+  .chart-labels .sub { font-size: 11px; color: var(--text-light); }
+
+  /* 교통 비교 카드 */
+  .transit-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+  }
+  .transit-card {
+    border: 1px solid rgba(20, 65, 62, 0.1);
+    border-radius: 14px;
+    padding: 14px 12px 16px;
+    text-align: center;
+    min-width: 0;
+  }
+  .transit-card .type {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
+    margin-bottom: 6px;
+  }
+  .transit-card .type.cand1 { background: #e7f4f2; color: var(--teal-700); }
+  .transit-card .type.cand2 { background: #e9effb; color: #2f6bc4; }
+  .transit-card .type.cand3 { background: #efecf9; color: #6f5cc0; }
+  .transit-card .name { font-size: 16px; font-weight: 800; }
+  .transit-card .name.cand1 { color: var(--teal-700); }
+  .transit-card .name.cand2 { color: #2f6bc4; }
+  .transit-card .name.cand3 { color: #6f5cc0; }
+  .transit-card .sub { font-size: 11.5px; color: var(--text-light); }
+  .transit-main {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin: 14px 0 10px;
+  }
+  .transit-main img { width: 34px; height: auto; }
+  .transit-value {
+    font-size: 26px;
+    font-weight: 800;
+  }
+  .transit-value .unit { font-size: 14px; font-weight: 700; margin-left: 1px; }
+  .transit-card .transfer { font-size: 12.5px; color: var(--text-mid); }
+  .transit-card .note { font-size: 11.5px; color: var(--text-light); margin-top: 12px; }
+
+  /* ── AI 카드 + 지원 ─────────────────────── */
+  .bottom-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+    gap: 20px;
+    margin-top: 20px;
+  }
+  .ai-card {
+    background: linear-gradient(120deg, #c8e8e9 0%, #cbeaeb 34%, #dcf0ef 62%, #eaf6f4 100%);
+    border-radius: 18px;
+    display: grid;
+    grid-template-columns: 176px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    overflow: hidden;
+  }
+  .ai-card > img { width: 100%; height: auto; display: block; align-self: end; }
+  .ai-body { padding: 22px 24px 22px 4px; }
+  .ai-title {
+    font-size: 20px;
+    font-weight: 800;
+    margin: 0 0 12px;
+    color: var(--text-dark);
+  }
+  .ai-title .light { font-weight: 600; }
+  .ai-title .spark { color: var(--teal-500); }
+  .ai-text {
+    font-size: 13.5px;
+    line-height: 1.75;
+    color: var(--text-mid);
+    margin: 0 0 16px;
+    white-space: pre-line;
+  }
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--card-white);
+    border: 1px solid rgba(20, 65, 62, 0.12);
+    border-radius: 12px;
+    padding: 13px 22px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--teal-700);
+  }
+  .btn-ghost:hover { border-color: var(--teal-300); }
+
+  .support-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .support-more {
+    margin-left: auto;
+    font-size: 12.5px;
+    color: var(--text-light);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .support-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+  }
+  .support-item {
+    border: 1px solid rgba(20, 65, 62, 0.1);
+    border-radius: 14px;
+    padding: 16px 8px 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    text-align: center;
+    color: var(--text-dark);
+  }
+  .support-item:hover { border-color: var(--teal-300); color: var(--text-dark); }
+  .support-item img { width: 52px; height: auto; }
+  .support-item .label {
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.4;
+    white-space: pre-line;
+  }
+
+  @media (max-width: 1240px) {
+    .split-row, .bottom-row { grid-template-columns: minmax(0, 1fr); }
+    .transit-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 1040px) {
+    .hero { grid-template-columns: minmax(0, 1fr); padding: 26px; }
+    .compare-table { display: block; overflow-x: auto; }
+    .support-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .ai-card { grid-template-columns: minmax(0, 1fr); }
+    .ai-body { padding: 0 22px 22px; }
+  }
+  /* ── 인쇄: 헤더의 '인쇄하기' 버튼이 window.print()를 호출하므로 필수 ── */
+  @media print {
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    @page { size: A4 landscape; margin: 10mm; }
+    .header-action, .faq-panel, .btn-ghost, .support-more { display: none !important; }
+    .panel, .ai-card, .split-row, .bottom-row { break-inside: avoid; }
+    .hero { break-after: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="shell">
+
+    <!-- 공통 상단바: data.brand(name, href), data.nav([{label, href, active}]), data.header_action(선택) 사용 -->
+<div class="header">
+  <a class="brand" href="preview.html">LOCA</a>
+  <nav class="nav">
+    
+    <a href="preview-page2.html" class="">현재 부담 진단</a>
+    
+    <a href="preview-page4.html" class="">대안 탐색</a>
+    
+    <a href="preview-page6.html" class="active">상세 비교</a>
+    
+  </nav>
+  
+  <a class="header-action" href="#" onclick="window.print(); return false;">
+    <img src="static/images/p6-print.png" alt="">
+    인쇄하기
+  </a>
+  
+</div>
+
+
+    <!-- 히어로 -->
+    <div class="hero">
+      <div class="hero-copy">
+        <h1 class="hero-title">한눈에 비교하고,<br><span class="accent">나에게 맞는 선택</span>을 살펴보세요</h1>
+        <p class="hero-desc">추천한 대안 주거지들을 다양한 관점에서 비교해<br>나의 상황에 가장 적합한 선택지를 찾아보세요.</p>
+      </div>
+      <div class="hero-art">
+        <img src="static/images/p6-hero.png" alt="">
+      </div>
+    </div>
+
+    <!-- 비교 표 -->
+    <div class="panel">
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th><span class="col-head-label">구분</span></th>
+            
+            <th>
+              
+              <div class="col-sub">현재</div>
+              <div class="col-name current">잠원동</div>
+            </th>
+            
+            <th>
+              <span class="col-type cand1">저주거비·지역연계형</span>
+              
+              <div class="col-name cand1">청림동</div>
+            </th>
+            
+            <th>
+              <span class="col-type cand2">주거절감 · 장거리통근형</span>
+              
+              <div class="col-name cand2">난향동</div>
+            </th>
+            
+            <th>
+              <span class="col-type cand3">광역분산 통근형</span>
+              
+              <div class="col-name cand3">신대방1동</div>
+            </th>
+            
+          </tr>
+        </thead>
+        <tbody>
+          
+          <tr class="">
+            <td>
+              <span class="row-label"><img src="static/images/p6-row-rent.png" alt="">주거비</span>
+            </td>
+            
+            <td class="cell-value">77.9만</td>
+            
+            <td class="cell-value">50.3만</td>
+            
+            <td class="cell-value">42.8만</td>
+            
+            <td class="cell-value">50.5만</td>
+            
+          </tr>
+          
+          <tr class="">
+            <td>
+              <span class="row-label"><img src="static/images/p6-row-commute.png" alt="">편도 통근</span>
+            </td>
+            
+            <td class="cell-value">17.2분</td>
+            
+            <td class="cell-value">27.1분</td>
+            
+            <td class="cell-value">40.5분</td>
+            
+            <td class="cell-value">30.2분</td>
+            
+          </tr>
+          
+          <tr class="">
+            <td>
+              <span class="row-label"><img src="static/images/p6-row-fare.png" alt="">월 교통비</span>
+            </td>
+            
+            <td class="cell-value">9.4만</td>
+            
+            <td class="cell-value">6.9만</td>
+            
+            <td class="cell-value">6.9만</td>
+            
+            <td class="cell-value">6.9만</td>
+            
+          </tr>
+          
+          <tr class="">
+            <td>
+              <span class="row-label"><img src="static/images/p6-row-time.png" alt="">시간 가치</span>
+            </td>
+            
+            <td class="cell-value">12.4만</td>
+            
+            <td class="cell-value">19.6만</td>
+            
+            <td class="cell-value">29.3만</td>
+            
+            <td class="cell-value">21.8만</td>
+            
+          </tr>
+          
+          <tr class="">
+            <td>
+              <span class="row-label"><img src="static/images/p6-row-transfer.png" alt="">환승</span>
+            </td>
+            
+            <td class="cell-value">1회</td>
+            
+            <td class="cell-value">1회</td>
+            
+            <td class="cell-value">1회</td>
+            
+            <td class="cell-value">0회</td>
+            
+          </tr>
+          
+          <tr class="">
+            <td>
+              <span class="row-label"><img src="static/images/p6-row-total.png" alt="">총부담</span>
+            </td>
+            
+            <td class="cell-value">99.8만</td>
+            
+            <td class="cell-value">76.8만</td>
+            
+            <td class="cell-value">79.0만</td>
+            
+            <td class="cell-value">79.3만</td>
+            
+          </tr>
+          
+          <tr class="delta">
+            <td>
+              <span class="row-label"><img src="static/images/p6-row-delta.png" alt="">현재 대비</span>
+            </td>
+            
+            <td class="cell-value">–</td>
+            
+            <td class="cell-value">−23.0만</td>
+            
+            <td class="cell-value">−20.8만</td>
+            
+            <td class="cell-value">−20.5만</td>
+            
+          </tr>
+          
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 차트 + 교통 비교 -->
+    <div class="split-row">
+      <div class="panel flush">
+        <div class="panel-head">
+          <h2 class="panel-title">부담 구성 비교</h2>
+          <div class="chart-legend">
+            
+            <span class="item"><span class="dot" style="background: #5cbdb0"></span>주거비</span>
+            
+            <span class="item"><span class="dot" style="background: #4a7fd6"></span>교통비</span>
+            
+            <span class="item"><span class="dot" style="background: #9a86d4"></span>통근시간 가치</span>
+            
+          </div>
+          <span class="chart-unit">(단위: 만 원)</span>
+        </div>
+        <div class="chart" data-axis-max="120" data-axis-step="20">
+          <div class="chart-axis"></div>
+          <div class="chart-plot">
+            
+            <div class="bar">
+              
+              <div class="bar-seg" data-value="77.9" style="background: #5cbdb0">77.9</div>
+              
+              <div class="bar-seg" data-value="9.4" style="background: #4a7fd6">9.4</div>
+              
+              <div class="bar-seg" data-value="12.4" style="background: #9a86d4">12.4</div>
+              
+            </div>
+            
+            <div class="bar">
+              
+              <div class="bar-seg" data-value="50.3" style="background: #5cbdb0">50.3</div>
+              
+              <div class="bar-seg" data-value="6.9" style="background: #4a7fd6">6.9</div>
+              
+              <div class="bar-seg" data-value="19.6" style="background: #9a86d4">19.6</div>
+              
+            </div>
+            
+            <div class="bar">
+              
+              <div class="bar-seg" data-value="42.8" style="background: #5cbdb0">42.8</div>
+              
+              <div class="bar-seg" data-value="6.9" style="background: #4a7fd6">6.9</div>
+              
+              <div class="bar-seg" data-value="29.3" style="background: #9a86d4">29.3</div>
+              
+            </div>
+            
+            <div class="bar">
+              
+              <div class="bar-seg" data-value="50.5" style="background: #5cbdb0">50.5</div>
+              
+              <div class="bar-seg" data-value="6.9" style="background: #4a7fd6">6.9</div>
+              
+              <div class="bar-seg" data-value="21.8" style="background: #9a86d4">21.8</div>
+              
+            </div>
+            
+          </div>
+          <div class="chart-labels">
+            
+            <div>
+              <div class="name">잠원동</div>
+              <div class="sub">(현재)</div>
+            </div>
+            
+            <div>
+              <div class="name">청림동</div>
+              
+            </div>
+            
+            <div>
+              <div class="name">난향동</div>
+              
+            </div>
+            
+            <div>
+              <div class="name">신대방1동</div>
+              
+            </div>
+            
+          </div>
+        </div>
+      </div>
+
+      <div class="panel flush">
+        <div class="panel-head">
+          <h2 class="panel-title">교통 비교</h2>
+        </div>
+        <div class="transit-row">
+          
+          <div class="transit-card">
+            
+            <div class="name current">잠원동</div>
+            <div class="sub">(현재)</div>
+            <div class="transit-main">
+              <img src="static/images/p6-train-1.png" alt="">
+              <span class="transit-value current">17.2<span class="unit">분</span></span>
+            </div>
+            <div class="transfer">환승 1회</div>
+            <div class="note">혼잡 노출 약 1.3분</div>
+          </div>
+          
+          <div class="transit-card">
+            <span class="type cand1">저주거비·지역연계형</span>
+            <div class="name cand1">청림동</div>
+            
+            <div class="transit-main">
+              <img src="static/images/p6-train-2.png" alt="">
+              <span class="transit-value cand1">27.1<span class="unit">분</span></span>
+            </div>
+            <div class="transfer">환승 1회</div>
+            <div class="note">혼잡 노출 약 13.7분</div>
+          </div>
+          
+          <div class="transit-card">
+            <span class="type cand2">주거절감 · 장거리통근형</span>
+            <div class="name cand2">난향동</div>
+            
+            <div class="transit-main">
+              <img src="static/images/p6-train-3.png" alt="">
+              <span class="transit-value cand2">40.5<span class="unit">분</span></span>
+            </div>
+            <div class="transfer">환승 1회</div>
+            <div class="note">혼잡 노출 약 12.9분</div>
+          </div>
+          
+          <div class="transit-card">
+            <span class="type cand3">광역분산 통근형</span>
+            <div class="name cand3">신대방1동</div>
+            
+            <div class="transit-main">
+              <img src="static/images/p6-train-4.png" alt="">
+              <span class="transit-value cand3">30.2<span class="unit">분</span></span>
+            </div>
+            <div class="transfer">환승 없음</div>
+            <div class="note">혼잡 노출 약 13.2분</div>
+          </div>
+          
+        </div>
+      </div>
+    </div>
+
+    <!-- AI 요약 + 지원 -->
+    <div class="bottom-row">
+      <div class="ai-card">
+        <img src="static/images/p6-ai-mascot.png" alt="">
+        <div class="ai-body">
+          <p class="ai-title">LOCA AI<span class="light">가 비교해봤어요</span> <span class="spark">✦</span></p>
+          <p class="ai-text">총부담 절감을 가장 중요하게 보면 청림동, 주거비 자체를 가장 많이<br>낮추려면 난향동, 환승 없는 출근을 선호한다면 신대방1동이 눈에 띄어요.<br>다만 세 지역 모두 현재 잠원동보다 출근시간과 혼잡 노출은 늘어납니다.</p>
+          <a class="btn-ghost" href="#">왜 그렇게 판단했어? <span>→</span></a>
+        </div>
+      </div>
+
+      <div class="panel flush">
+        <div class="support-head">
+          <h2 class="panel-title">나에게 맞는 지원도 확인해보세요</h2>
+          <a class="support-more" href="#">확인해볼 수 있는 지원 <span>›</span></a>
+        </div>
+        <div class="support-grid">
+          
+          <a class="support-item" href="#">
+            <img src="static/images/p6-support-1.png" alt="">
+            <span class="label">청년월세지원</span>
+          </a>
+          
+          <a class="support-item" href="#">
+            <img src="static/images/p6-support-2.png" alt="">
+            <span class="label">K-패스</span>
+          </a>
+          
+          <a class="support-item" href="#">
+            <img src="static/images/p6-support-3.png" alt="">
+            <span class="label">청년전용<br>주거 지원</span>
+          </a>
+          
+          <a class="support-item" href="#">
+            <img src="static/images/p6-support-4.png" alt="">
+            <span class="label">주택도시기금</span>
+          </a>
+          
+        </div>
+      </div>
+    </div>
+
+    <!-- 공통 하단바: data.faq.title, data.faq.questions, data.faq.avatar(선택) 사용 -->
+<div class="faq-panel has-avatar">
+  <h2 class="faq-title">LOCA에게 물어보세요</h2>
+  <div class="faq-row">
+    
+    <div class="faq-chip">
+      <span class="mark">?</span>
+      세 후보 중 총부담이 가장 낮은 곳은 어디에요?
+      <span class="arrow">›</span>
+    </div>
+    
+    <div class="faq-chip">
+      <span class="mark">?</span>
+      환승 없는 후보만 자세히 설명해줘
+      <span class="arrow">›</span>
+    </div>
+    
+    <div class="faq-chip">
+      <span class="mark">?</span>
+      혼잡까지 고려하면 어디가 괜찮아요?
+      <span class="arrow">›</span>
+    </div>
+    
+    <div class="faq-chip">
+      <span class="mark">?</span>
+      제가 확인해볼 수 있는 지원은 뭐가 있어요?
+      <span class="arrow">›</span>
+    </div>
+    
+  </div>
+  
+  <img class="faq-avatar" src="static/images/p6-avatar.png" alt="">
+  
+</div>
+
+
+  </div>
+</div>
+
+<script>
+  /* 차트 높이: JSON 값(data-value)과 축 최대값(data-axis-max)으로 계산 */
+  document.querySelectorAll('.chart').forEach(function (chart) {
+    var max = parseFloat(chart.dataset.axisMax) || 100;
+    var step = parseFloat(chart.dataset.axisStep) || 20;
+    var axis = chart.querySelector('.chart-axis');
+    var plot = chart.querySelector('.chart-plot');
+    for (var v = 0; v <= max; v += step) {
+      var tick = document.createElement('span');
+      tick.textContent = v;
+      tick.style.bottom = (v / max * 100) + '%';
+      axis.appendChild(tick);
+      if (v > 0) {
+        var line = document.createElement('div');
+        line.className = 'chart-gridline';
+        line.style.bottom = (v / max * 100) + '%';
+        plot.appendChild(line);
+      }
+    }
+    chart.querySelectorAll('.bar').forEach(function (bar) {
+      var segs = bar.querySelectorAll('.bar-seg');
+      var total = 0;
+      segs.forEach(function (seg) { total += parseFloat(seg.dataset.value) || 0; });
+      bar.style.height = (total / max * 100) + '%';
+      segs.forEach(function (seg) {
+        var value = parseFloat(seg.dataset.value) || 0;
+        seg.style.flex = '0 0 ' + (value / total * 100) + '%';
+      });
+    });
+  });
+</script>
+</body>
+</html>

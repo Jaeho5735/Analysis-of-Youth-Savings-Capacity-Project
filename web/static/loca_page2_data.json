@@ -1,0 +1,161 @@
+{
+  "brand": {
+    "name": "LOCA",
+    "href": "/"
+  },
+  "nav": [
+    {
+      "label": "현재 부담 진단",
+      "active": true,
+      "href": "/diagnosis"
+    },
+    {
+      "label": "대안 탐색",
+      "active": false,
+      "href": "/explore"
+    },
+    {
+      "label": "상세 비교",
+      "active": false,
+      "href": "/compare"
+    }
+  ],
+  "form": {
+    "title_line1": "지금 내 주거·통근 부담은",
+    "title_line2": "어느 정도일까요?",
+    "description": "정확한 분석을 위해 몇 가지 정보를 입력해주세요.",
+    "fields": [
+      {
+        "id": "residence",
+        "icon": "home",
+        "label": "현재 거주지",
+        "type": "select",
+        "value": "신사샤르망S 오피스텔",
+        "options": [
+          "신사샤르망S 오피스텔",
+          "역삼푸르지오시티",
+          "상암월드컵파크"
+        ]
+      },
+      {
+        "id": "workplace",
+        "icon": "work",
+        "label": "실제 근무지",
+        "type": "select",
+        "value": "삼정KPMG",
+        "options": [
+          "삼정KPMG",
+          "여의도 IFC",
+          "판교 테크노밸리"
+        ]
+      },
+      {
+        "id": "deposit",
+        "icon": "deposit",
+        "label": "보증금",
+        "type": "text",
+        "value": "1,000만 원"
+      },
+      {
+        "id": "rent",
+        "icon": "rent",
+        "label": "월세",
+        "type": "text",
+        "value": "75만 원"
+      },
+      {
+        "id": "depart_time",
+        "icon": "time",
+        "label": "평소 출발시간",
+        "type": "time",
+        "value": "08:10"
+      },
+      {
+        "id": "work_days",
+        "icon": "days",
+        "label": "월 출근일수",
+        "type": "select",
+        "value": "21일",
+        "options": [
+          "18일",
+          "20일",
+          "21일",
+          "22일"
+        ]
+      }
+    ],
+    "submit_label": "내 부담 분석하기 →",
+    "submit_href": "/result",
+    "privacy_note": "입력하신 정보는 분석 외 다른 용도로 사용되지 않아요."
+  },
+  "benchmark": {
+    "title": "LOCA 분석 기준 서울의 통근 수준",
+    "stats": [
+      {
+        "icon": "clock",
+        "label": "평균 편도 통근시간",
+        "prefix": "약",
+        "value": "29.4",
+        "unit": "분"
+      },
+      {
+        "icon": "calendar",
+        "label": "월 통근시간",
+        "prefix": "약",
+        "value": "20.6",
+        "unit": "시간"
+      },
+      {
+        "icon": "bus",
+        "label": "월 교통비",
+        "prefix": "약",
+        "value": "6.7",
+        "unit": "만 원"
+      },
+      {
+        "icon": "won",
+        "label": "통근시간의 월 가치",
+        "prefix": "약",
+        "value": "21.3",
+        "unit": "만 원"
+      }
+    ],
+    "footnote": "* 통근시간의 가치는 실제 지출액이 아니라, 최저임금 기준으로 환산한 시간의 가치입니다."
+  },
+  "guide": {
+    "line1_plain": "입력하신 정보를 바탕으로",
+    "line2_parts": [
+      {
+        "text": "주거비",
+        "highlight": true
+      },
+      {
+        "text": "와 ",
+        "highlight": false
+      },
+      {
+        "text": "통근 부담",
+        "highlight": true
+      },
+      {
+        "text": "을 분석",
+        "highlight": true
+      },
+      {
+        "text": "해드려요.",
+        "highlight": false
+      }
+    ],
+    "line3": "모든 항목을 입력하시면",
+    "line4": "분석 결과를 확인할 수 있어요."
+  },
+  "faq": {
+    "title": "LOCA에게 물어보세요",
+    "questions": [
+      "지금 제 부담에서 가장 큰 항목은 뭐예요?",
+      "어느 구간이 가장 혼잡해요?",
+      "통근시간 가치는 실제로 내는 돈인가요?"
+    ],
+    "avatar": "images/p2-circle-mascot.png"
+  }
+}

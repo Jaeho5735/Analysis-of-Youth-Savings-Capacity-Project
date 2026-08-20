@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ data.brand.name }} · 대안 탐색</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='loca_common.css') }}">
+<style>
+  /* 공통 토큰·상단바·하단바는 static/loca_common.css 사용 */
+
+  /* ── 히어로 ── */
+  .hero {
+    background: linear-gradient(160deg, #f2f7f9, #f7fbfb 55%, #f1f8fa);
+    border-radius: 22px;
+    display: grid;
+    grid-template-columns: minmax(0, 0.62fr) minmax(0, 1fr) minmax(300px, 0.78fr);
+    gap: 18px;
+    align-items: center;
+    padding: 22px 26px 22px 0;
+    overflow: hidden;
+  }
+  .hero-art {
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+  .hero-art img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  .hero-copy { min-width: 0; }
+  .hero-title {
+    font-size: clamp(26px, 2.7vw, 36px);
+    font-weight: 800;
+    line-height: 1.34;
+    margin: 0 0 14px;
+  }
+  .hero-title .accent { color: var(--teal-500); }
+  .hero-desc {
+    font-size: 15px;
+    line-height: 1.7;
+    color: var(--text-mid);
+    margin: 0 0 22px;
+  }
+  .search-form {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+  .search-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    background: var(--card-white);
+    border: 1px solid rgba(20, 65, 62, 0.14);
+    border-radius: 14px;
+    padding: 14px 16px;
+  }
+  .search-box .pin {
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--teal-100);
+    color: var(--teal-700);
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .search-box input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    font-family: inherit;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text-dark);
+    background: transparent;
+  }
+  .search-box .clear {
+    border: none;
+    background: transparent;
+    color: var(--text-light);
+    font-size: 17px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .search-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 18px;
+    background: linear-gradient(90deg, #3f9c96, #4faaa4);
+    color: #fff;
+    font-family: inherit;
+    font-size: 17px;
+    font-weight: 800;
+    padding: 17px 40px;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+  }
+  .search-submit:hover { color: #fff; opacity: 0.94; }
+
+  /* ── 현재 기준 카드 ── */
+  .baseline-card {
+    background: var(--card-white);
+    border: 1px solid rgba(20, 65, 62, 0.07);
+    border-radius: 16px;
+    padding: 22px 24px;
+    box-shadow: 0 6px 20px rgba(20, 65, 62, 0.05);
+    min-width: 0;
+  }
+  .baseline-title {
+    font-size: 16px;
+    font-weight: 800;
+    margin: 0 0 16px;
+  }
+  .baseline-title .note {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-mid);
+  }
+  .baseline-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 0;
+    min-width: 0;
+  }
+  .baseline-row img { width: 22px; height: 22px; flex-shrink: 0; }
+  .baseline-row .label {
+    font-size: 13.5px;
+    color: var(--text-mid);
+    font-weight: 600;
+  }
+  .baseline-row .value {
+    margin-left: auto;
+    font-size: 15px;
+    font-weight: 700;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .baseline-row .value .num { font-size: 20px; font-weight: 800; }
+  .baseline-row .value .unit { font-size: 13px; font-weight: 700; margin-left: 2px; }
+  .baseline-divider {
+    border-top: 1px solid rgba(20, 65, 62, 0.1);
+    margin: 12px 0;
+  }
+  .baseline-total {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding-top: 4px;
+  }
+  .baseline-total .label { font-size: 14.5px; font-weight: 800; }
+  .baseline-total .label .note { font-size: 12.5px; font-weight: 600; color: var(--text-mid); }
+  .baseline-total .value {
+    margin-left: auto;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--teal-500);
+    white-space: nowrap;
+  }
+  .baseline-total .value .num { font-size: 24px; font-weight: 800; }
+
+  /* ── 비교 섹션 ── */
+  .compare-panel {
+    position: relative;
+    margin-top: 22px;
+    background: #f4faf9;
+    border-radius: 22px;
+    padding: 30px 34px 34px;
+    overflow: hidden;
+  }
+  .compare-deco {
+    position: absolute;
+    bottom: 58%;
+    opacity: 0.85;
+    pointer-events: none;
+  }
+  .compare-deco.left { left: 12px; width: 240px; }
+  .compare-deco.right { right: 12px; width: 210px; }
+  .compare-head {
+    position: relative;
+    text-align: center;
+    z-index: 1;
+  }
+  .compare-eyebrow {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--teal-500);
+    margin: 0 0 8px;
+  }
+  .compare-title {
+    font-size: clamp(22px, 2.3vw, 30px);
+    font-weight: 800;
+    margin: 0 0 10px;
+    line-height: 1.35;
+  }
+  .compare-title .accent { color: var(--teal-500); }
+  .compare-desc {
+    font-size: 14.5px;
+    color: var(--text-mid);
+    margin: 0 0 26px;
+  }
+  .compare-empty {
+    position: relative;
+    z-index: 1;
+    border: 2px dashed rgba(20, 65, 62, 0.16);
+    border-radius: 18px;
+    padding: 52px 24px;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.55);
+  }
+  .compare-empty img {
+    width: 68px;
+    height: 68px;
+    margin-bottom: 14px;
+  }
+  .compare-empty .empty-title {
+    font-size: 17px;
+    font-weight: 800;
+    margin: 0 0 8px;
+  }
+  .compare-empty .empty-desc {
+    font-size: 13.5px;
+    color: var(--text-light);
+    margin: 0;
+  }
+
+  @media (max-width: 1180px) {
+    .hero {
+      grid-template-columns: minmax(0, 0.75fr) minmax(0, 1fr);
+      padding: 22px 26px 26px 0;
+    }
+    .baseline-card { grid-column: 1 / -1; margin: 0 0 0 26px; }
+  }
+  @media (max-width: 1040px) {
+    .hero { grid-template-columns: minmax(0, 1fr); padding: 0 24px 24px; }
+    .hero-art { justify-content: center; }
+    .hero-art img { max-width: 300px; }
+    .search-submit { width: 100%; }
+    .baseline-card { margin: 0; }
+    .compare-deco { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="shell">
+
+    <!-- 공통 상단바 -->
+    {% include 'partials/header.html' %}
+
+    <!-- 히어로 -->
+    <div class="hero">
+      <div class="hero-art">
+        <img src="{{ url_for('static', filename='images/p4-hero.png') }}" alt="">
+      </div>
+
+      <div class="hero-copy">
+        <h1 class="hero-title">{{ data.hero.title_plain_1 }}<span class="accent">{{ data.hero.title_accent }}</span>{{ data.hero.title_plain_2 }}</h1>
+        <p class="hero-desc">{{ data.hero.description_line1 }}<br>{{ data.hero.description_line2 }}</p>
+
+        <form class="search-form" method="get" action="{{ data.hero.search.submit_href }}">
+          <div class="search-box">
+            <span class="pin">◉</span>
+            <input type="text" name="area" value="{{ data.hero.search.value }}" placeholder="{{ data.hero.search.placeholder }}">
+            <button class="clear" type="reset" aria-label="지우기">✕</button>
+          </div>
+          <button class="search-submit" type="submit">{{ data.hero.search.submit_label }}</button>
+        </form>
+      </div>
+
+      <!-- 현재 기준 카드 -->
+      <div class="baseline-card">
+        <h2 class="baseline-title">{{ data.baseline.title }} <span class="note">{{ data.baseline.title_note }}</span></h2>
+
+        {% for row in data.baseline.rows %}
+        <div class="baseline-row">
+          <img src="{{ url_for('static', filename='images/p4-icon-' ~ row.icon ~ '.png') }}" alt="">
+          <span class="label">{{ row.label }}</span>
+          <span class="value">{{ row.value }}</span>
+        </div>
+        {% endfor %}
+
+        <div class="baseline-divider"></div>
+
+        {% for metric in data.baseline.metrics %}
+        <div class="baseline-row">
+          <img src="{{ url_for('static', filename='images/p4-icon-' ~ metric.icon ~ '.png') }}" alt="">
+          <span class="label">{{ metric.label }}</span>
+          <span class="value"><span class="num">{{ metric.value }}</span><span class="unit">{{ metric.unit }}</span></span>
+        </div>
+        {% endfor %}
+
+        <div class="baseline-divider"></div>
+
+        <div class="baseline-total">
+          <span class="label">{{ data.baseline.total.label }} <span class="note">{{ data.baseline.total.label_note }}</span></span>
+          <span class="value"><span class="num">{{ data.baseline.total.value }}</span>{{ data.baseline.total.unit }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 비교 섹션 -->
+    <div class="compare-panel">
+      <img class="compare-deco left" src="{{ url_for('static', filename='images/p4-deco-left.png') }}" alt="">
+      <img class="compare-deco right" src="{{ url_for('static', filename='images/p4-deco-right.png') }}" alt="">
+
+      <div class="compare-head">
+        <p class="compare-eyebrow">{{ data.compare.eyebrow }}</p>
+        <h2 class="compare-title">{% for part in data.compare.title_parts %}{% if part.accent %}<span class="accent">{{ part.text }}</span>{% else %}{{ part.text }}{% endif %}{% endfor %}</h2>
+        <p class="compare-desc">{{ data.compare.description }}</p>
+      </div>
+
+      <div class="compare-empty">
+        <img src="{{ url_for('static', filename='images/p4-chart.png') }}" alt="">
+        <p class="empty-title">{{ data.compare.empty.title }}</p>
+        <p class="empty-desc">{{ data.compare.empty.description }}</p>
+      </div>
+    </div>
+
+    <!-- 공통 하단바 -->
+    {% include 'partials/faq_bar.html' %}
+
+  </div>
+</div>
+</body>
+</html>

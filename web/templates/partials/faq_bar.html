@@ -1,0 +1,16 @@
+<!-- 공통 하단바: data.faq.title, data.faq.questions, data.faq.avatar(선택) 사용 -->
+<div class="faq-panel {% if data.faq.avatar %}has-avatar{% endif %}">
+  <h2 class="faq-title">{{ data.faq.title }}</h2>
+  <div class="faq-row">
+    {% for q in data.faq.questions %}
+    <div class="faq-chip">
+      <span class="mark">?</span>
+      {{ q }}
+      <span class="arrow">›</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% if data.faq.avatar %}
+  <img class="faq-avatar" src="{{ url_for('static', filename=data.faq.avatar) }}" alt="">
+  {% endif %}
+</div>

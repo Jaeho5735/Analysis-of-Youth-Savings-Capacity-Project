@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ data.brand.name }} · 현재 부담 진단</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='loca_common.css') }}">
+<style>
+  /* 공통 토큰·상단바·하단바는 static/loca_common.css 사용 */
+
+  /* Main panel */
+  .main-panel {
+    background: #f5faf9;
+    border-radius: 22px;
+    padding: 28px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 26px;
+    align-items: start;
+  }
+  .card {
+    background: var(--card-white);
+    border: 1px solid rgba(20, 65, 62, 0.07);
+    border-radius: 18px;
+    padding: 30px 32px;
+    min-width: 0;
+  }
+
+  /* Form card */
+  .form-title {
+    font-size: clamp(23px, 2.3vw, 30px);
+    font-weight: 800;
+    line-height: 1.32;
+    margin: 0 0 12px;
+  }
+  .form-title .accent { color: var(--teal-500); }
+  .form-desc {
+    font-size: 14px;
+    color: var(--text-mid);
+    margin: 0 0 24px;
+  }
+  .field-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .field-row {
+    display: grid;
+    grid-template-columns: minmax(88px, 150px) minmax(0, 1.4fr);
+    align-items: center;
+    gap: 12px;
+  }
+  .field-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-mid);
+  }
+  .field-label img {
+    width: 24px;
+    height: 24px;
+    display: block;
+    flex-shrink: 0;
+  }
+  .field-control {
+    position: relative;
+    min-width: 0;
+  }
+  .field-control input,
+  .field-control select {
+    width: 100%;
+    min-width: 0;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-dark);
+    background: var(--card-white);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 13px 28px 13px 14px;
+    appearance: none;
+    outline: none;
+    text-overflow: ellipsis;
+  }
+  .field-control input:focus,
+  .field-control select:focus {
+    border-color: var(--teal-300);
+  }
+  .field-control .field-affix {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-light);
+    font-size: 12px;
+    pointer-events: none;
+  }
+  .btn-primary {
+    width: 100%;
+    margin-top: 26px;
+    background: linear-gradient(90deg, #4aa8a2, #63bdb4);
+    color: #fff;
+    font-family: inherit;
+    font-size: 19px;
+    font-weight: 800;
+    padding: 18px 24px;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+  }
+  .privacy-note {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--text-light);
+    margin: 14px 0 0;
+  }
+  .privacy-note .dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1.5px solid var(--teal-300);
+    flex-shrink: 0;
+  }
+
+  /* Right column */
+  .right-col {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    min-width: 0;
+  }
+  .benchmark-title {
+    font-size: 19px;
+    font-weight: 800;
+    margin: 0 0 20px;
+  }
+  .stat-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px;
+  }
+  .stat-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #f7fcfb;
+    border: 1px solid rgba(20, 65, 62, 0.07);
+    border-radius: 14px;
+    padding: 16px 14px;
+    min-width: 0;
+  }
+  .stat-card img {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+  }
+  .stat-text { min-width: 0; }
+  .stat-label {
+    font-size: 13px;
+    color: var(--text-mid);
+    margin-bottom: 4px;
+  }
+  .stat-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--teal-700);
+    white-space: nowrap;
+  }
+  .stat-value .num {
+    font-size: clamp(17px, 1.8vw, 25px);
+    font-weight: 800;
+    margin: 0 2px;
+  }
+  .benchmark-footnote {
+    font-size: 12px;
+    color: var(--text-light);
+    margin: 18px 0 0;
+  }
+
+  /* Guide card */
+  .guide-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    background: var(--card-white);
+    border: 1px solid rgba(20, 65, 62, 0.07);
+    border-radius: 18px;
+    padding: 0 28px 0 0;
+    overflow: hidden;
+  }
+  .guide-card img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  .guide-text p {
+    margin: 0;
+    line-height: 1.65;
+  }
+  .guide-lead {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-dark);
+  }
+  .guide-lead .accent { color: var(--teal-500); }
+  .guide-sub {
+    font-size: 14px;
+    color: var(--text-light);
+    margin-top: 8px;
+  }
+
+  /* 하단바(FAQ) 스타일은 static/loca_common.css 공통 사용 */
+
+  /* Narrow viewports: never squeeze the numbers or field values */
+  @media (max-width: 1180px) {
+    .stat-grid { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 1040px) {
+    .main-panel { grid-template-columns: minmax(0, 1fr); }
+    .field-row { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    .guide-card { grid-template-columns: minmax(0, 1fr); padding: 0 0 24px; }
+    .guide-text { padding: 0 24px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="shell">
+
+    <!-- 공통 상단바 -->
+    {% include 'partials/header.html' %}
+
+    <!-- Main -->
+    <div class="main-panel">
+
+      <!-- Input form -->
+      <div class="card">
+        <h1 class="form-title">
+          {{ data.form.title_line1 }}<br>
+          <span class="accent">{{ data.form.title_line2 }}</span>
+        </h1>
+        <p class="form-desc">{{ data.form.description }}</p>
+
+        <form method="get" action="{{ data.form.submit_href }}">
+          <div class="field-list">
+            {% for field in data.form.fields %}
+            <div class="field-row">
+              <label class="field-label" for="{{ field.id }}">
+                <img src="{{ url_for('static', filename='images/p2-icon-' ~ field.icon ~ '.png') }}" alt="">
+                {{ field.label }}
+              </label>
+              <div class="field-control">
+                {% if field.type == 'select' %}
+                <select id="{{ field.id }}" name="{{ field.id }}">
+                  {% for opt in field.options %}
+                  <option value="{{ opt }}" {% if opt == field.value %}selected{% endif %}>{{ opt }}</option>
+                  {% endfor %}
+                </select>
+                <span class="field-affix">⌄</span>
+                {% elif field.type == 'time' %}
+                <input id="{{ field.id }}" name="{{ field.id }}" type="text" value="{{ field.value }}">
+                <span class="field-affix">◷</span>
+                {% else %}
+                <input id="{{ field.id }}" name="{{ field.id }}" type="text" value="{{ field.value }}">
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+
+          <button class="btn-primary" type="submit">{{ data.form.submit_label }}</button>
+        </form>
+
+        <p class="privacy-note"><span class="dot"></span>{{ data.form.privacy_note }}</p>
+      </div>
+
+      <!-- Right column -->
+      <div class="right-col">
+
+        <div class="card">
+          <h2 class="benchmark-title">{{ data.benchmark.title }}</h2>
+          <div class="stat-grid">
+            {% for stat in data.benchmark.stats %}
+            <div class="stat-card">
+              <img src="{{ url_for('static', filename='images/p2-stat-' ~ stat.icon ~ '.png') }}" alt="">
+              <div class="stat-text">
+                <div class="stat-label">{{ stat.label }}</div>
+                <div class="stat-value">{{ stat.prefix }}<span class="num">{{ stat.value }}</span>{{ stat.unit }}</div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          <p class="benchmark-footnote">{{ data.benchmark.footnote }}</p>
+        </div>
+
+        <div class="guide-card">
+          <img src="{{ url_for('static', filename='images/p2-illustration.png') }}" alt="">
+          <div class="guide-text">
+            <p class="guide-lead">{{ data.guide.line1_plain }}</p>
+            <p class="guide-lead">
+              {% for part in data.guide.line2_parts %}{% if part.highlight %}<span class="accent">{{ part.text }}</span>{% else %}{{ part.text }}{% endif %}{% endfor %}
+            </p>
+            <p class="guide-sub">{{ data.guide.line3 }}<br>{{ data.guide.line4 }}</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 공통 하단바 -->
+    {% include 'partials/faq_bar.html' %}
+
+  </div>
+</div>
+</body>
+</html>

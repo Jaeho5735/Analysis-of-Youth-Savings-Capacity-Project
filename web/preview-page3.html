@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LOCA · 현재 부담 진단 결과</title>
+<link rel="stylesheet" href="static/loca_common.css">
+<style>
+  /* 공통 토큰·상단바·하단바는 static/loca_common.css 사용 */
+
+  /* ── 상단 2단 (요약 + 경로) ── */
+  .top-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+    gap: 22px;
+  }
+  .card {
+    background: var(--card-white);
+    border: 1px solid rgba(20, 65, 62, 0.08);
+    border-radius: 20px;
+    padding: 26px 28px;
+    min-width: 0;
+  }
+  .card.summary { background: #f2faf9; }
+
+  .summary-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+    gap: 18px;
+    align-items: center;
+  }
+  .summary-text p {
+    margin: 0;
+    font-size: 19px;
+    font-weight: 700;
+    line-height: 1.62;
+  }
+  .summary-text p + p { margin-top: 20px; }
+  .summary-text .accent { color: var(--teal-500); }
+
+  .donut-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 280px;
+    justify-self: center;
+  }
+  .donut {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+  }
+  .donut::after {
+    content: "";
+    position: absolute;
+    inset: 26%;
+    background: var(--card-white);
+    border-radius: 50%;
+  }
+  .donut-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    z-index: 1;
+  }
+  .donut-center .c-label {
+    font-size: 13px;
+    color: var(--text-mid);
+    margin-bottom: 2px;
+  }
+  .donut-center .c-value {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-dark);
+    white-space: nowrap;
+  }
+  .donut-center .c-value .num {
+    font-size: 26px;
+    font-weight: 800;
+    margin: 0 2px;
+  }
+  .donut-label {
+    position: absolute;
+    font-size: 13px;
+    font-weight: 700;
+    z-index: 1;
+  }
+  .donut-callout {
+    position: absolute;
+    top: -8px;
+    right: -4px;
+    background: #fdece4;
+    color: #d1794a;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 6px 12px;
+    border-radius: 8px;
+    white-space: nowrap;
+  }
+
+  /* ── 경로 카드 ── */
+  .route-title {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 21px;
+    font-weight: 800;
+    margin: 0 0 6px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid rgba(20, 65, 62, 0.08);
+  }
+  .route-title .arrow { color: var(--text-light); font-weight: 700; }
+  .route-facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px 14px;
+    padding: 20px 0;
+    border-bottom: 1px solid rgba(20, 65, 62, 0.08);
+  }
+  .fact {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+  .fact img { width: 40px; height: 40px; flex-shrink: 0; }
+  .fact-label { font-size: 12.5px; color: var(--text-light); margin-bottom: 2px; }
+  .fact-value { font-size: 17px; font-weight: 800; color: var(--teal-700); }
+
+  .station-line {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    padding-top: 26px;
+  }
+  .station {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 0;
+  }
+  .station .dot {
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: var(--card-white);
+    border: 3px solid currentColor;
+    position: relative;
+    z-index: 1;
+  }
+  .station.transfer .dot {
+    width: 19px;
+    height: 19px;
+    border-width: 5px;
+  }
+  .station .rail {
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    right: -50%;
+    height: 3px;
+    background: currentColor;
+  }
+  .station .name {
+    margin-top: 10px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--text-mid);
+    text-align: center;
+  }
+  .station.transfer .name { color: var(--text-dark); }
+  .station .sub {
+    font-size: 11.5px;
+    color: var(--text-light);
+    text-align: center;
+  }
+
+  /* ── 혼잡 구간 ── */
+  .congestion-card {
+    margin-top: 22px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(210px, 250px);
+    gap: 26px;
+  }
+  .congestion-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin: 0 0 22px;
+  }
+  .congestion-head h2 { font-size: 21px; font-weight: 800; margin: 0; }
+  .congestion-head .note { font-size: 13px; color: var(--text-mid); }
+  .segment-row {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .segment {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .segment:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    top: 56px;
+    right: -8px;
+    width: 24px;
+    border-top: 2px dotted rgba(20, 65, 62, 0.28);
+  }
+  .segment.dot-warm:not(:last-child)::after { border-top-color: rgba(226, 86, 79, 0.45); }
+  .segment .station-name {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--text-mid);
+    text-align: center;
+  }
+  .segment.high .station-name { color: var(--red-500); }
+  .segment-body {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .segment-body img { width: 58px; height: 58px; flex-shrink: 0; }
+  .segment-value {
+    font-size: 19px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+  .segment-value .pct { font-size: 13px; font-weight: 700; }
+  .segment-level { font-size: 13px; font-weight: 700; margin-top: 2px; }
+
+  .peak-panel {
+    border-left: 1px solid rgba(20, 65, 62, 0.1);
+    padding-left: 26px;
+    min-width: 0;
+  }
+  .peak-label { font-size: 14px; font-weight: 700; color: var(--text-mid); }
+  .peak-value-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 4px 0 18px;
+  }
+  .peak-value {
+    font-size: 44px;
+    font-weight: 800;
+    color: var(--red-500);
+    white-space: nowrap;
+  }
+  .peak-value .unit { font-size: 22px; }
+  .peak-badge {
+    background: #fdeceb;
+    color: var(--red-500);
+    font-size: 13px;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 999px;
+  }
+  .peak-divider {
+    border-top: 1px solid rgba(20, 65, 62, 0.1);
+    padding-top: 16px;
+  }
+  .peak-exposure {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--red-500);
+    white-space: nowrap;
+  }
+  .peak-exposure .small { font-size: 18px; }
+
+  /* ── CTA 배너 ── */
+  .cta-banner {
+    margin-top: 22px;
+    background: linear-gradient(180deg, #5dc0c4, #4dadcb);
+    border-radius: 20px;
+    padding: 20px 40px;
+    display: flex;
+    align-items: center;
+    gap: 26px;
+    color: #fff;
+  }
+  .cta-banner img {
+    width: 132px;
+    height: auto;
+    display: block;
+    margin: -18px 0 -10px;
+    flex-shrink: 0;
+  }
+  .cta-text { min-width: 0; }
+  .cta-title { font-size: 24px; font-weight: 800; margin: 0 0 8px; }
+  .cta-desc { font-size: 14.5px; margin: 0; line-height: 1.6; opacity: 0.95; }
+  .cta-button {
+    margin-left: auto;
+    background: #fff;
+    color: #2f97a8;
+    font-size: 17px;
+    font-weight: 800;
+    padding: 16px 34px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .cta-button:hover { color: #23808f; }
+
+  @media (max-width: 1180px) {
+    .top-row { grid-template-columns: minmax(0, 1fr); }
+    .congestion-card { grid-template-columns: minmax(0, 1fr); }
+    .peak-panel { border-left: none; border-top: 1px solid rgba(20,65,62,0.1); padding: 20px 0 0; }
+  }
+  @media (max-width: 1040px) {
+    .summary-body { grid-template-columns: minmax(0, 1fr); }
+    .route-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .segment-row { grid-auto-flow: row; gap: 14px; }
+    .segment {
+      flex-direction: row;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 16px;
+      border-bottom: 1px solid rgba(20,65,62,0.06);
+      padding-bottom: 12px;
+    }
+    .segment .station-name { min-width: 120px; text-align: left; }
+    .segment:not(:last-child)::after { display: none; }
+    .cta-banner { flex-wrap: wrap; }
+    .cta-button { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="shell">
+
+    <!-- 공통 상단바 -->
+    <!-- 공통 상단바: data.brand(name, href), data.nav([{label, href, active}]), data.header_action(선택) 사용 -->
+<div class="header">
+  <a class="brand" href="preview.html">LOCA</a>
+  <nav class="nav">
+    
+    <a href="preview-page2.html" class="active">현재 부담 진단</a>
+    
+    <a href="preview-page4.html" class="">대안 탐색</a>
+    
+    <a href="preview-page6.html" class="">상세 비교</a>
+    
+  </nav>
+  
+</div>
+
+
+    <div class="top-row">
+
+      <!-- 요약 + 도넛 -->
+      <div class="card summary">
+        <div class="summary-body">
+          <div class="summary-text">
+            <p>
+              현재 집은 직장까지의 통근시간은<br>짧은 편이지만,<br><span class="accent">월환산 주거비가 전체 부담의</span><br><span class="accent">큰 비중을 차지하고 있어요.</span><br>
+            </p>
+            <p>
+              출근 경로 마지막 구간에서는<br>혼잡도 확인됩니다.<br>
+            </p>
+          </div>
+
+          <div class="donut-wrap">
+            <span class="donut-callout">비현금성 부담</span>
+            <div class="donut" data-values="12.4,9.4,77.9" data-colors="#f7c1a4,#7b9ede,#4bb3ad">
+              
+              <span class="donut-label" data-seg="0" style="top: 14%; left: 63%; color: #4b5a55"></span>
+              
+              <span class="donut-label" data-seg="1" style="top: 33%; left: 78%; color: #ffffff"></span>
+              
+              <span class="donut-label" data-seg="2" style="top: 58%; left: 2%; color: #ffffff"></span>
+              
+              <div class="donut-center">
+                <span class="c-label">월 총 부담</span>
+                <span class="c-value">약<span class="num">99.8</span>만 원</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 경로 카드 -->
+      <div class="card">
+        <h2 class="route-title">
+          신사샤르망S<span class="arrow">→</span>삼정KPMG
+        </h2>
+
+        <div class="route-facts">
+          
+          <div class="fact">
+            <img src="static/images/p3-icon-time.png" alt="">
+            <div>
+              <div class="fact-label">편도</div>
+              <div class="fact-value">17.2분</div>
+            </div>
+          </div>
+          
+          <div class="fact">
+            <img src="static/images/p3-icon-distance.png" alt="">
+            <div>
+              <div class="fact-label">거리</div>
+              <div class="fact-value">3.74km</div>
+            </div>
+          </div>
+          
+          <div class="fact">
+            <img src="static/images/p3-icon-transfer.png" alt="">
+            <div>
+              <div class="fact-label">환승</div>
+              <div class="fact-value">1회</div>
+            </div>
+          </div>
+          
+          <div class="fact">
+            <img src="static/images/p3-icon-walk.png" alt="">
+            <div>
+              <div class="fact-label">도보</div>
+              <div class="fact-value">10.9분</div>
+            </div>
+          </div>
+          
+          <div class="fact">
+            <img src="static/images/p3-icon-line.png" alt="">
+            <div>
+              <div class="fact-label">이용노선</div>
+              <div class="fact-value">신분당선 → 2호선</div>
+            </div>
+          </div>
+          
+          <div class="fact">
+            <img src="static/images/p3-icon-fare.png" alt="">
+            <div>
+              <div class="fact-label">월 예상 교통비</div>
+              <div class="fact-value">약 9.4 만 원</div>
+            </div>
+          </div>
+          
+        </div>
+
+        <div class="station-line">
+          
+          <div class="station " style="color: #e2564f">
+            <span class="rail" style="color: #e2564f"></span>
+            <span class="dot"></span>
+            <span class="name">신사역</span>
+            
+          </div>
+          
+          <div class="station " style="color: #e2564f">
+            <span class="rail" style="color: #e2564f"></span>
+            <span class="dot"></span>
+            <span class="name">논현역</span>
+            
+          </div>
+          
+          <div class="station " style="color: #e2564f">
+            <span class="rail" style="color: #e2564f"></span>
+            <span class="dot"></span>
+            <span class="name">신논현역</span>
+            
+          </div>
+          
+          <div class="station transfer" style="color: #1d1d1d">
+            <span class="rail" style="color: #43c07a"></span>
+            <span class="dot"></span>
+            <span class="name">강남역</span>
+            <span class="sub">환승</span>
+          </div>
+          
+          <div class="station " style="color: #43c07a">
+            <span class="rail" style="color: #43c07a"></span>
+            <span class="dot"></span>
+            <span class="name">역삼역</span>
+            
+          </div>
+          
+          <div class="station " style="color: #43c07a">
+            
+            <span class="dot"></span>
+            <span class="name">삼정KPMG</span>
+            
+          </div>
+          
+        </div>
+      </div>
+    </div>
+
+    <!-- 혼잡 구간 -->
+    <div class="card congestion-card">
+      <div>
+        <div class="congestion-head">
+          <h2>혼잡 구간</h2>
+          <span class="note">평일 오전 8시 기준</span>
+        </div>
+
+        <div class="segment-row">
+          
+          <div class="segment  ">
+            <span class="station-name" style="color: #3fa9a4">신사역</span>
+            <div class="segment-body">
+              <img src="static/images/p3-crowd-low.png" alt="">
+              <div>
+                
+                <div class="segment-value" style="color: #3fa9a4">17.2<span class="pct">%</span></div>
+                
+                <div class="segment-level" style="color: #3fa9a4">여유</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="segment  ">
+            <span class="station-name" style="color: #3fa9a4">논현역</span>
+            <div class="segment-body">
+              <img src="static/images/p3-crowd-low.png" alt="">
+              <div>
+                
+                <div class="segment-value" style="color: #3fa9a4">26.1<span class="pct">%</span></div>
+                
+                <div class="segment-level" style="color: #3fa9a4">여유</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="segment  ">
+            <span class="station-name" style="color: #e5a52a">신논현역</span>
+            <div class="segment-body">
+              <img src="static/images/p3-crowd-mid.png" alt="">
+              <div>
+                
+                <div class="segment-value" style="color: #e5a52a">47.2<span class="pct">%</span></div>
+                
+                <div class="segment-level" style="color: #e5a52a">보통</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="segment high dot-warm">
+            <span class="station-name" style="color: #e2564f">강남역</span>
+            <div class="segment-body">
+              <img src="static/images/p3-crowd-high.png" alt="">
+              <div>
+                
+                <div class="segment-value" style="color: #e2564f">약 81.1<span class="pct">%</span></div>
+                
+                <div class="segment-level" style="color: #e2564f">혼잡</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="segment  dot-warm">
+            <span class="station-name" style="color: #e2564f">강남역 → 역삼역</span>
+            <div class="segment-body">
+              <img src="static/images/p3-crowd-high.png" alt="">
+              <div>
+                
+                <div class="segment-level" style="color: #e2564f">혼잡</div>
+              </div>
+            </div>
+          </div>
+          
+        </div>
+      </div>
+
+      <div class="peak-panel">
+        <div class="peak-label">최대 혼잡도</div>
+        <div class="peak-value-row">
+          <span class="peak-value">81.1<span class="unit">%</span></span>
+          <span class="peak-badge">혼잡</span>
+        </div>
+        <div class="peak-divider">
+          <div class="peak-label">편도 혼잡 노출</div>
+          <div class="peak-exposure"><span class="small">약</span> 1.3<span class="small">분</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CTA 배너 -->
+    <div class="cta-banner">
+      <img src="static/images/p3-cta-mascot.png" alt="">
+      <div class="cta-text">
+        <p class="cta-title">그럼 다른 지역은 어떨까요?</p>
+        <p class="cta-desc">다양한 지역의 주거비·교통비·통근시간을 비교해<br>나에게 더 나은 선택지를 찾아보세요.</p>
+      </div>
+      <a class="cta-button" href="preview-page4.html">대안 탐색하기 →</a>
+    </div>
+
+    <!-- 공통 하단바 -->
+    <!-- 공통 하단바: data.faq.title, data.faq.questions, data.faq.avatar(선택) 사용 -->
+<div class="faq-panel has-avatar">
+  <h2 class="faq-title">LOCA에게 물어보세요</h2>
+  <div class="faq-row">
+    
+    <div class="faq-chip">
+      <span class="mark">?</span>
+      지금 제 부담에서 가장 큰 항목은 뭐예요?
+      <span class="arrow">›</span>
+    </div>
+    
+    <div class="faq-chip">
+      <span class="mark">?</span>
+      어느 구간이 가장 혼잡해요?
+      <span class="arrow">›</span>
+    </div>
+    
+    <div class="faq-chip">
+      <span class="mark">?</span>
+      통근시간 가치는 실제로 내는 돈인가요?
+      <span class="arrow">›</span>
+    </div>
+    
+  </div>
+  
+  <img class="faq-avatar" src="static/images/p3-circle-mascot.png" alt="">
+  
+</div>
+
+
+  </div>
+</div>
+<script>
+  /* 도넛: 만원 값(data-values)에서 구성비를 계산해 각도와 라벨을 함께 생성.
+     누적 퍼센트를 하드코딩하면 총부담이 100만원이 아닐 때 각도와 라벨이 어긋난다. */
+  document.querySelectorAll('.donut').forEach(function (donut) {
+    var values = (donut.dataset.values || '').split(',').map(function (v) { return parseFloat(v) || 0; });
+    var colors = (donut.dataset.colors || '').split(',');
+    var total = values.reduce(function (a, b) { return a + b; }, 0);
+    if (!total) return;
+    var stops = [];
+    var acc = 0;
+    values.forEach(function (v, i) {
+      var start = acc / total * 100;
+      acc += v;
+      stops.push((colors[i] || '#ccc').trim() + ' ' + start.toFixed(2) + '% ' + (acc / total * 100).toFixed(2) + '%');
+    });
+    donut.style.background = 'conic-gradient(' + stops.join(', ') + ')';
+    donut.querySelectorAll('.donut-label').forEach(function (label) {
+      var i = parseInt(label.dataset.seg, 10);
+      if (isNaN(i) || !values[i]) return;
+      label.textContent = (values[i] / total * 100).toFixed(1) + '%';
+    });
+  });
+</script>
+</body>
+</html>
