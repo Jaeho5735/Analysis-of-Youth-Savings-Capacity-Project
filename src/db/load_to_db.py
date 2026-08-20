@@ -23,6 +23,7 @@ LOAD_ORDER = [
     "dim_region", "dim_business_district", "bridge_district_dong",
     "fact_dong_burden", "fact_dong_type", "fact_dong_type_features",
     "fact_commute_od", "fact_commute_route", "fact_rent_transaction",
+    "dim_policy",
 ]
 
 
@@ -48,6 +49,35 @@ def read(name: str, **kw) -> pd.DataFrame:
 def code10_to_8(series: pd.Series) -> pd.Series:
     """1111065000.0 형태의 실수/문자 코드10을 정수->10자리 문자열->앞8자리로."""
     return series.astype(float).astype("int64").astype(str).str.zfill(10).str[:8]
+
+
+# 정책 조건표 정규화. 엑셀 원본을 직접 넣을 때만 쓴다(정제 CSV가 있으면 그쪽 우선).
+_ANNUAL_INCOME = {"햇살론유스", "청년미래적금", "전세보증금 반환보증 보증료 지원"}
+_CATEGORY_FIX = {"K-패스": "transport", "서울 청년수당 지원": "living_subsidy"}
+_BENEFIT_UNIT = {
+    "서울시 청년 월세 지원": "month", "청년월세 지원사업": "month",
+    "청년 부동산 중개보수 및 이사비 지원": "once", "서울 청년수당 지원": "month",
+    "햇살론유스": "limit", "희망두배 청년통장": "month",
+    "자산형성지원사업(청년내일저축계좌)": "month", "청년미래적금": "month",
+    "전세보증금 반환보증 보증료 지원": "once", "전세보증금반환보증": "limit",
+}
+_BURDEN_TAG = {1: "높은 월세 부담", 2: "높은 보증금 부담", 3: "높은 통근 교통비",
+               4: "낮은 현금흐름 잔여액", 5: "자산형성 여력", 6: "보증금 반환 위험"}
+
+
+def normalize_policy(d: pd.DataFrame) -> pd.DataFrame:
+    d = d.copy()
+    d["income_period_src"] = d["policy_name"].apply(
+        lambda n: "year" if n in _ANNUAL_INCOME else "month")
+    d["income_max"] = d.apply(
+        lambda r: round(r["income_max"] / 12)
+        if r["income_period_src"] == "year" and pd.notna(r["income_max"]) else r["income_max"],
+        axis=1)
+    d["category"] = d.apply(
+        lambda r: _CATEGORY_FIX.get(r["policy_name"], r["category"]), axis=1)
+    d["benefit_unit"] = d["policy_name"].map(_BENEFIT_UNIT)
+    d["burden_tag_name"] = d["burden_tag"].map(_BURDEN_TAG)
+    return d
 
 
 def truncate_all(eng):
@@ -274,7 +304,25 @@ def main():
     })
     insert(eng, fact_txn, "fact_rent_transaction")
 
-    print("적재 완료. sql/02_analysis_queries.sql 의 QC1~QC4 실행할 것.")
+    # 8. dim_policy (팀원B 조건표)
+    #    엑셀 원본을 그대로 넣지 않고 세 가지를 정규화한다.
+    #      ① 연소득 기준 3건을 12로 나눠 월 기준으로 통일
+    #      ② 교통·생활 지원이 housing_subsidy로 들어와 있어 재분류
+    #      ③ 지원액 단위(월/1회/한도)가 섞여 있어 benefit_unit 신설
+    print("[dim_policy]")
+    pol_path = next((p for p in [DATA_DIR / "정책_조건표_정제.csv",
+                                 DATA_DIR / "서울_청년_1인가구_정책_조건표.xlsx"] if p.exists()), None)
+    if pol_path is None:
+        print("  ! 정책 조건표 없음 - dim_policy 건너뜀\n")
+    else:
+        pol = (pd.read_csv(pol_path, encoding="utf-8-sig") if pol_path.suffix == ".csv"
+               else normalize_policy(pd.read_excel(pol_path)))
+        keep = ["policy_name", "provider", "burden_tag", "burden_tag_name", "category",
+                "age_min", "age_max", "income_max", "income_period_src", "rent_max",
+                "benefit_amount", "benefit_unit", "source_url"]
+        insert(eng, pol[keep], "dim_policy")
+
+    print("적재 완료. sql/02_qc.sql 실행할 것.")
 
 
 if __name__ == "__main__":
