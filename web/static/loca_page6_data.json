@@ -1,0 +1,336 @@
+{
+  "brand": {
+    "name": "LOCA",
+    "href": "/"
+  },
+  "nav": [
+    {
+      "label": "현재 부담 진단",
+      "href": "/diagnosis",
+      "active": false
+    },
+    {
+      "label": "대안 탐색",
+      "href": "/explore",
+      "active": false
+    },
+    {
+      "label": "상세 비교",
+      "href": "/compare",
+      "active": true
+    }
+  ],
+  "header_action": {
+    "label": "인쇄하기",
+    "href": "#",
+    "icon": "images/p6-print.png",
+    "print": true
+  },
+  "hero": {
+    "title_line1": "한눈에 비교하고,",
+    "title_line2_accent": "나에게 맞는 선택",
+    "title_line2_plain": "을 살펴보세요",
+    "description": "추천한 대안 주거지들을 다양한 관점에서 비교해\n나의 상황에 가장 적합한 선택지를 찾아보세요.",
+    "art": "images/p6-hero.png"
+  },
+  "table": {
+    "head_label": "구분",
+    "columns": [
+      {
+        "name": "잠원동",
+        "sub": "현재",
+        "type": null,
+        "tone": "current"
+      },
+      {
+        "name": "청림동",
+        "sub": null,
+        "type": "저주거비·지역연계형",
+        "tone": "cand1"
+      },
+      {
+        "name": "난향동",
+        "sub": null,
+        "type": "주거절감 · 장거리통근형",
+        "tone": "cand2"
+      },
+      {
+        "name": "신대방1동",
+        "sub": null,
+        "type": "광역분산 통근형",
+        "tone": "cand3"
+      }
+    ],
+    "rows": [
+      {
+        "label": "주거비",
+        "icon": "images/p6-row-rent.png",
+        "values": [
+          "77.9만",
+          "50.3만",
+          "42.8만",
+          "50.5만"
+        ],
+        "highlight": false
+      },
+      {
+        "label": "편도 통근",
+        "icon": "images/p6-row-commute.png",
+        "values": [
+          "17.2분",
+          "27.1분",
+          "40.5분",
+          "30.2분"
+        ],
+        "highlight": false
+      },
+      {
+        "label": "월 교통비",
+        "icon": "images/p6-row-fare.png",
+        "values": [
+          "9.4만",
+          "6.9만",
+          "6.9만",
+          "6.9만"
+        ],
+        "highlight": false
+      },
+      {
+        "label": "시간 가치",
+        "icon": "images/p6-row-time.png",
+        "values": [
+          "12.4만",
+          "19.6만",
+          "29.3만",
+          "21.8만"
+        ],
+        "highlight": false
+      },
+      {
+        "label": "환승",
+        "icon": "images/p6-row-transfer.png",
+        "values": [
+          "1회",
+          "1회",
+          "1회",
+          "0회"
+        ],
+        "highlight": false
+      },
+      {
+        "label": "총부담",
+        "icon": "images/p6-row-total.png",
+        "values": [
+          "99.8만",
+          "76.8만",
+          "79.0만",
+          "79.3만"
+        ],
+        "highlight": false
+      },
+      {
+        "label": "현재 대비",
+        "icon": "images/p6-row-delta.png",
+        "values": [
+          "–",
+          "−23.0만",
+          "−20.8만",
+          "−20.5만"
+        ],
+        "highlight": true
+      }
+    ]
+  },
+  "chart": {
+    "title": "부담 구성 비교",
+    "unit_note": "(단위: 만 원)",
+    "axis_max": 120,
+    "axis_step": 20,
+    "legend": [
+      {
+        "label": "주거비",
+        "color": "#5cbdb0"
+      },
+      {
+        "label": "교통비",
+        "color": "#4a7fd6"
+      },
+      {
+        "label": "통근시간 가치",
+        "color": "#9a86d4"
+      }
+    ],
+    "bars": [
+      {
+        "name": "잠원동",
+        "sub": "(현재)",
+        "segments": [
+          {
+            "value": 77.9,
+            "color": "#5cbdb0"
+          },
+          {
+            "value": 9.4,
+            "color": "#4a7fd6"
+          },
+          {
+            "value": 12.4,
+            "color": "#9a86d4"
+          }
+        ]
+      },
+      {
+        "name": "청림동",
+        "sub": null,
+        "segments": [
+          {
+            "value": 50.3,
+            "color": "#5cbdb0"
+          },
+          {
+            "value": 6.9,
+            "color": "#4a7fd6"
+          },
+          {
+            "value": 19.6,
+            "color": "#9a86d4"
+          }
+        ]
+      },
+      {
+        "name": "난향동",
+        "sub": null,
+        "segments": [
+          {
+            "value": 42.8,
+            "color": "#5cbdb0"
+          },
+          {
+            "value": 6.9,
+            "color": "#4a7fd6"
+          },
+          {
+            "value": 29.3,
+            "color": "#9a86d4"
+          }
+        ]
+      },
+      {
+        "name": "신대방1동",
+        "sub": null,
+        "segments": [
+          {
+            "value": 50.5,
+            "color": "#5cbdb0"
+          },
+          {
+            "value": 6.9,
+            "color": "#4a7fd6"
+          },
+          {
+            "value": 21.8,
+            "color": "#9a86d4"
+          }
+        ]
+      }
+    ]
+  },
+  "transit": {
+    "title": "교통 비교",
+    "cards": [
+      {
+        "name": "잠원동",
+        "sub": "(현재)",
+        "type": null,
+        "tone": "current",
+        "icon": "images/p6-train-1.png",
+        "value": "17.2",
+        "unit": "분",
+        "transfer": "환승 1회",
+        "note": "혼잡 노출 약 1.3분"
+      },
+      {
+        "name": "청림동",
+        "sub": null,
+        "type": "저주거비·지역연계형",
+        "tone": "cand1",
+        "icon": "images/p6-train-2.png",
+        "value": "27.1",
+        "unit": "분",
+        "transfer": "환승 1회",
+        "note": "혼잡 노출 약 13.7분"
+      },
+      {
+        "name": "난향동",
+        "sub": null,
+        "type": "주거절감 · 장거리통근형",
+        "tone": "cand2",
+        "icon": "images/p6-train-3.png",
+        "value": "40.5",
+        "unit": "분",
+        "transfer": "환승 1회",
+        "note": "혼잡 노출 약 12.9분"
+      },
+      {
+        "name": "신대방1동",
+        "sub": null,
+        "type": "광역분산 통근형",
+        "tone": "cand3",
+        "icon": "images/p6-train-4.png",
+        "value": "30.2",
+        "unit": "분",
+        "transfer": "환승 없음",
+        "note": "혼잡 노출 약 13.2분"
+      }
+    ]
+  },
+  "ai": {
+    "title_strong": "LOCA AI",
+    "title_rest": "가 비교해봤어요",
+    "text": "총부담 절감을 가장 중요하게 보면 청림동, 주거비 자체를 가장 많이\n낮추려면 난향동, 환승 없는 출근을 선호한다면 신대방1동이 눈에 띄어요.\n다만 세 지역 모두 현재 잠원동보다 출근시간과 혼잡 노출은 늘어납니다.",
+    "art": "images/p6-ai-mascot.png",
+    "button": {
+      "label": "왜 그렇게 판단했어?",
+      "href": "#"
+    }
+  },
+  "support": {
+    "title": "나에게 맞는 지원도 확인해보세요",
+    "more": {
+      "label": "확인해볼 수 있는 지원",
+      "href": "#"
+    },
+    "items": [
+      {
+        "label": "청년월세지원",
+        "icon": "images/p6-support-1.png",
+        "href": "#"
+      },
+      {
+        "label": "K-패스",
+        "icon": "images/p6-support-2.png",
+        "href": "#"
+      },
+      {
+        "label": "청년전용\n주거 지원",
+        "icon": "images/p6-support-3.png",
+        "href": "#"
+      },
+      {
+        "label": "주택도시기금",
+        "icon": "images/p6-support-4.png",
+        "href": "#"
+      }
+    ]
+  },
+  "faq": {
+    "title": "LOCA에게 물어보세요",
+    "avatar": "images/p6-avatar.png",
+    "questions": [
+      "세 후보 중 총부담이 가장 낮은 곳은 어디에요?",
+      "환승 없는 후보만 자세히 설명해줘",
+      "혼잡까지 고려하면 어디가 괜찮아요?",
+      "제가 확인해볼 수 있는 지원은 뭐가 있어요?"
+    ]
+  }
+}

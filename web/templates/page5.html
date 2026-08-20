@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ data.brand.name }} · 대안 비교</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='loca_common.css') }}">
+<style>
+  /* 공통 토큰·상단바·하단 채팅바는 static/loca_common.css 사용 */
+
+  /* ── 히어로 ─────────────────────────────── */
+  .hero {
+    background: linear-gradient(160deg, #f4f9fa, #fbfdfd 60%, #f2f8fa);
+    border: 1px solid rgba(20, 65, 62, 0.07);
+    border-radius: 20px;
+    display: grid;
+    grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.1fr) minmax(240px, 0.62fr);
+    align-items: center;
+    gap: 20px;
+    padding: 20px 0 20px 30px;
+    overflow: hidden;
+  }
+  .hero-title {
+    font-size: clamp(22px, 2.1vw, 27px);
+    font-weight: 800;
+    margin: 0 0 12px;
+  }
+  .hero-desc {
+    font-size: 14px;
+    line-height: 1.75;
+    color: var(--text-mid);
+    margin: 0;
+  }
+  .search-card {
+    background: var(--card-white);
+    border: 1px solid rgba(20, 65, 62, 0.09);
+    border-radius: 16px;
+    padding: 16px 20px 18px;
+    box-shadow: 0 3px 14px rgba(20, 65, 62, 0.05);
+  }
+  .search-label {
+    font-size: 13px;
+    color: var(--text-mid);
+    margin: 0 0 10px;
+  }
+  .search-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px;
+    align-items: stretch;
+  }
+  .search-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--card-white);
+    border: 1px solid rgba(20, 65, 62, 0.16);
+    border-radius: 12px;
+    padding: 12px 14px;
+    min-width: 0;
+  }
+  .search-field input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    font-family: inherit;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text-dark);
+    background: transparent;
+  }
+  .search-clear {
+    border: none;
+    background: none;
+    color: var(--text-light);
+    font-size: 17px;
+    cursor: pointer;
+    padding: 0 2px;
+    flex-shrink: 0;
+  }
+  .search-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background: var(--teal-700);
+    color: #fff;
+    font-family: inherit;
+    font-size: 15.5px;
+    font-weight: 800;
+    padding: 0 28px;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .hero-art {
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 0;
+  }
+  .hero-art img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  /* ── 판정 패널 ───────────────────────────── */
+  .panel {
+    background: var(--card-white);
+    border: 1px solid rgba(20, 65, 62, 0.08);
+    border-radius: 20px;
+    padding: 26px 28px;
+    margin-top: 22px;
+  }
+  .panel-title {
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 1.45;
+    margin: 0 0 20px;
+  }
+  .verdict-row {
+    display: grid;
+    grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.25fr) minmax(0, 0.94fr) minmax(0, 0.86fr);
+    gap: 16px;
+    align-items: stretch;
+  }
+  .vcard {
+    border-radius: 14px;
+    padding: 14px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 0;
+  }
+  .vcard.pink { background: #fdf2f3; border: 1px solid #f8dfe2; }
+  .vcard.plain { background: #fbfcfd; border: 1px solid rgba(20, 65, 62, 0.09); }
+  .vcard-note {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-light);
+    margin: -10px 0 12px;
+  }
+  .vcard-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--red-500);
+    margin: 0 0 14px;
+  }
+  .vcard.plain .vcard-title {
+    color: var(--text-mid);
+    font-weight: 700;
+  }
+  .compare-pair {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 14px;
+    width: 100%;
+  }
+  .pair-item { text-align: center; min-width: 0; }
+  .pair-value {
+    font-size: 25px;
+    font-weight: 800;
+    color: #c8515b;
+    white-space: nowrap;
+  }
+  .pair-value .unit { font-size: 14px; font-weight: 700; margin-left: 1px; }
+  .pair-label {
+    font-size: 12px;
+    color: var(--text-light);
+    margin-top: 4px;
+  }
+  .pair-arrow {
+    font-size: 18px;
+    color: var(--text-light);
+    padding-top: 6px;
+    flex-shrink: 0;
+  }
+  .pill {
+    margin-top: 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 10px;
+    padding: 10px 22px;
+    font-size: 14.5px;
+    font-weight: 800;
+    width: 100%;
+    justify-content: center;
+  }
+  .pill.rose { background: #fbe3e6; color: #c8515b; }
+  .pill.blue { background: #e6ecfa; color: var(--blue-600); }
+  .pill.rose-strong { background: #fadde2; color: #c8515b; }
+
+  /* 통근 계산 카드 (2분할) */
+  .vcard.split { padding-bottom: 14px; }
+  .split-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr);
+    gap: 16px;
+    width: 100%;
+    align-items: start;
+  }
+  .split-divider { background: rgba(20, 65, 62, 0.1); align-self: stretch; }
+  .split-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 0;
+  }
+  .split-label {
+    font-size: 12.5px;
+    color: var(--text-mid);
+    font-weight: 600;
+    text-align: center;
+  }
+  .split-sublabel {
+    font-size: 11.5px;
+    color: var(--text-light);
+    margin-top: 2px;
+    text-align: center;
+  }
+  .split-pair {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 10px;
+  }
+  .split-value {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text-dark);
+    white-space: nowrap;
+  }
+  .split-value .unit { font-size: 13px; font-weight: 700; margin-left: 1px; }
+  .split-value.accent { color: var(--blue-600); }
+  .split-value.muted { color: var(--text-light); font-weight: 700; }
+
+  /* 결론 카드 */
+  .conclusion {
+    background: #fdf2f3;
+    border: 1px solid #f8dfe2;
+    border-radius: 14px;
+    padding: 16px 18px 10px;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .conclusion-tag {
+    font-size: 12.5px;
+    font-weight: 800;
+    color: #c8515b;
+    margin: 0 0 8px;
+  }
+  .conclusion-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 18px;
+    font-weight: 800;
+    color: #c8515b;
+    margin: 0 0 10px;
+  }
+  .conclusion-title .mark { font-size: 17px; }
+  .conclusion-text {
+    font-size: 12.5px;
+    line-height: 1.65;
+    color: var(--text-mid);
+    margin: 0;
+  }
+  .conclusion-art {
+    margin: 6px auto 0;
+    width: 78%;
+    max-width: 210px;
+    height: auto;
+    display: block;
+  }
+
+  /* ── 추천 패널 ───────────────────────────── */
+  .recommend-row {
+    display: grid;
+    grid-template-columns: minmax(0, 0.78fr) repeat(3, minmax(0, 1fr));
+    gap: 20px;
+    align-items: start;
+  }
+  .recommend-intro { min-width: 0; }
+  .recommend-title {
+    font-size: clamp(20px, 1.8vw, 24px);
+    font-weight: 800;
+    line-height: 1.45;
+    margin: 4px 0 16px;
+  }
+  .recommend-desc {
+    font-size: 13.5px;
+    line-height: 1.8;
+    color: var(--text-mid);
+    margin: 0 0 20px;
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px 18px;
+    margin-bottom: 24px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    color: var(--text-mid);
+    font-weight: 600;
+  }
+  .legend-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .btn-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: var(--teal-700);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 800;
+    padding: 17px 30px;
+    border-radius: 14px;
+    width: 100%;
+    max-width: 300px;
+  }
+  .btn-cta:hover { background: var(--teal-500); color: #fff; }
+
+  /* 후보 카드 */
+  .cand-card {
+    border: 1px solid rgba(20, 65, 62, 0.1);
+    border-radius: 16px;
+    padding: 16px 18px 18px;
+    min-width: 0;
+    background: var(--card-white);
+  }
+  .cand-head {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 14px;
+  }
+  .cand-rank {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .cand-rank.teal { background: var(--teal-500); }
+  .cand-rank.blue { background: #4a7fd6; }
+  .cand-name {
+    font-size: 17px;
+    font-weight: 800;
+    line-height: 1.25;
+  }
+  .cand-type {
+    font-size: 12px;
+    color: var(--text-light);
+    margin-top: 3px;
+  }
+  .cand-badge {
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 7px 12px;
+    border-radius: 9px;
+    white-space: nowrap;
+  }
+  .cand-badge.green { background: #e6f4ee; color: #2c8163; }
+  .cand-badge.blue { background: #e8eefb; color: var(--blue-600); }
+  .cand-chevron { color: var(--text-light); font-size: 17px; }
+  .cand-metrics {
+    border-top: 1px solid rgba(20, 65, 62, 0.08);
+    padding-top: 12px;
+    display: grid;
+    gap: 9px;
+  }
+  .cand-metric {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text-mid);
+  }
+  .cand-metric img { width: 18px; height: auto; opacity: 0.8; }
+  .cand-metric .value {
+    font-size: 14.5px;
+    font-weight: 700;
+    color: var(--text-dark);
+    white-space: nowrap;
+  }
+  .cand-summary {
+    margin-top: 14px;
+    background: #f5faf8;
+    border: 1px solid rgba(20, 65, 62, 0.07);
+    border-radius: 11px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .cand-summary .label { font-size: 12.5px; color: var(--text-mid); }
+  .cand-summary .prefix { font-size: 12.5px; color: var(--text-mid); }
+  .cand-summary .value {
+    font-size: 19px;
+    font-weight: 800;
+    color: var(--teal-700);
+  }
+  .cand-summary .unit { font-size: 12.5px; color: var(--text-mid); }
+  .cand-note {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+  }
+  .cand-note img { width: 32px; height: auto; }
+  .cand-note p {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--text-mid);
+  }
+
+  @media (max-width: 1240px) {
+    .verdict-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .recommend-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 1040px) {
+    .hero { grid-template-columns: minmax(0, 1fr); padding: 22px; }
+    .hero-art { justify-content: center; }
+    .verdict-row, .recommend-row { grid-template-columns: minmax(0, 1fr); }
+    .search-row { grid-template-columns: minmax(0, 1fr); }
+    .search-submit { padding: 15px 28px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="shell">
+
+    {% include 'partials/header.html' %}
+
+    <!-- 히어로: 거주지 입력 -->
+    <div class="hero">
+      <div class="hero-copy">
+        <h1 class="hero-title">{{ data.hero.title }}</h1>
+        <p class="hero-desc">{{ data.hero.description }}</p>
+      </div>
+      <div class="search-card">
+        <p class="search-label">{{ data.hero.search.label }}</p>
+        <form class="search-row" method="get" action="{{ data.hero.search.submit_href }}">
+          <div class="search-field">
+            <input type="text" name="dong" value="{{ data.hero.search.value }}" placeholder="{{ data.hero.search.placeholder }}">
+            <button type="reset" class="search-clear" aria-label="지우기">✕</button>
+          </div>
+          <button type="submit" class="search-submit">{{ data.hero.search.submit_label }} <span>→</span></button>
+        </form>
+      </div>
+      <div class="hero-art">
+        <img src="{{ url_for('static', filename=data.hero.art) }}" alt="">
+      </div>
+    </div>
+
+    <!-- 판정: 월세 착시 -->
+    <div class="panel">
+      <h2 class="panel-title">{{ data.verdict.title_line1 }}<br>{{ data.verdict.title_line2 }}</h2>
+      <div class="verdict-row">
+
+        <!-- 월세 비교 -->
+        <div class="vcard pink">
+          <p class="vcard-title">{{ data.verdict.rent.title }}</p>
+          {% if data.verdict.rent.note %}<p class="vcard-note">{{ data.verdict.rent.note }}</p>{% endif %}
+          <div class="compare-pair">
+            <div class="pair-item">
+              <div class="pair-value">{{ data.verdict.rent.from_value }}<span class="unit">{{ data.verdict.rent.from_unit }}</span></div>
+              <div class="pair-label">{{ data.verdict.rent.from_label }}</div>
+            </div>
+            <div class="pair-arrow">→</div>
+            <div class="pair-item">
+              <div class="pair-value">{{ data.verdict.rent.to_value }}<span class="unit">{{ data.verdict.rent.to_unit }}</span></div>
+              <div class="pair-label">{{ data.verdict.rent.to_label }}</div>
+            </div>
+          </div>
+          <span class="pill rose">{{ data.verdict.rent.pill }}</span>
+        </div>
+
+        <!-- 통근까지 계산하면 -->
+        <div class="vcard plain split">
+          <p class="vcard-title">{{ data.verdict.commute.title }}</p>
+          <div class="split-body">
+            <div class="split-col">
+              <div class="split-label">{{ data.verdict.commute.time.label }}</div>
+              <div class="split-pair">
+                <span class="split-value">{{ data.verdict.commute.time.from_value }}<span class="unit">{{ data.verdict.commute.time.from_unit }}</span></span>
+                <span class="pair-arrow">→</span>
+                <span class="split-value">{{ data.verdict.commute.time.to_value }}<span class="unit">{{ data.verdict.commute.time.to_unit }}</span></span>
+              </div>
+              <span class="pill blue">{{ data.verdict.commute.time.pill }}</span>
+            </div>
+            <div class="split-divider"></div>
+            <div class="split-col">
+              <div class="split-label">{{ data.verdict.commute.extra.label }}</div>
+              <div class="split-sublabel">{{ data.verdict.commute.extra.sublabel }}</div>
+              <div class="split-pair">
+                <span class="split-value muted">{{ data.verdict.commute.extra.from_value }}</span>
+                <span class="pair-arrow">→</span>
+                <span class="split-value accent">{{ data.verdict.commute.extra.to_value }}<span class="unit">{{ data.verdict.commute.extra.to_unit }}</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 최종 결과 -->
+        <div class="vcard pink">
+          <p class="vcard-title">{{ data.verdict.total.title }}</p>
+          <div class="compare-pair">
+            <div class="pair-item">
+              <div class="pair-value">{{ data.verdict.total.from_value }}<span class="unit">{{ data.verdict.total.from_unit }}</span></div>
+              <div class="pair-label">{{ data.verdict.total.from_label }}</div>
+            </div>
+            <div class="pair-arrow">→</div>
+            <div class="pair-item">
+              <div class="pair-value">{{ data.verdict.total.to_value }}<span class="unit">{{ data.verdict.total.to_unit }}</span></div>
+              <div class="pair-label">{{ data.verdict.total.to_label }}</div>
+            </div>
+          </div>
+          <span class="pill rose-strong">{{ data.verdict.total.pill }} <span>↑</span></span>
+        </div>
+
+        <!-- 결론 -->
+        <div class="conclusion">
+          <p class="conclusion-tag">{{ data.verdict.conclusion.tag }}</p>
+          <p class="conclusion-title"><span class="mark">⚠</span>{{ data.verdict.conclusion.title }}</p>
+          <p class="conclusion-text">{{ data.verdict.conclusion.text }}</p>
+          <img class="conclusion-art" src="{{ url_for('static', filename=data.verdict.conclusion.art) }}" alt="">
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 추천 지역 -->
+    <div class="panel">
+      <div class="recommend-row">
+        <div class="recommend-intro">
+          <h2 class="recommend-title">{{ data.recommend.title_line1 }}<br>{{ data.recommend.title_line2 }}</h2>
+          <p class="recommend-desc">{{ data.recommend.description }}</p>
+          <div class="legend">
+            {% for item in data.recommend.legend %}
+            <span class="legend-item"><span class="legend-dot" style="background: {{ item.color }}"></span>{{ item.label }}</span>
+            {% endfor %}
+          </div>
+          <a class="btn-cta" href="{{ data.recommend.cta.href }}">{{ data.recommend.cta.label }} <span>→</span></a>
+        </div>
+
+        {% for card in data.recommend.cards %}
+        <div class="cand-card">
+          <div class="cand-head">
+            <span class="cand-rank {{ card.rank_color }}">{{ card.rank }}</span>
+            <div>
+              <div class="cand-name">{{ card.name }}</div>
+              <div class="cand-type">{{ card.type }}</div>
+            </div>
+            <span class="cand-badge {{ card.badge_color }}">{{ card.badge }}</span>
+            <a class="cand-chevron" href="{{ card.href }}" aria-label="자세히 보기">›</a>
+          </div>
+          <div class="cand-metrics">
+            {% for metric in card.metrics %}
+            <div class="cand-metric">
+              <img src="{{ url_for('static', filename=metric.icon) }}" alt="">
+              <span>{{ metric.label }}</span>
+              <span class="value">{{ metric.value }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="cand-summary">
+            <span class="label">{{ card.summary.label }}</span>
+            <span class="prefix">{{ card.summary.prefix }}</span>
+            <span class="value">{{ card.summary.value }}</span>
+            <span class="unit">{{ card.summary.unit }}</span>
+          </div>
+          <div class="cand-note">
+            <img src="{{ url_for('static', filename=card.note.icon) }}" alt="">
+            <p>{{ card.note.text }}</p>
+          </div>
+        </div>
+        {% endfor %}
+
+      </div>
+    </div>
+
+
+    {% include 'partials/chat_bar.html' %}
+
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,165 @@
+{
+  "brand": {
+    "name": "LOCA",
+    "href": "/"
+  },
+  "nav": [
+    {
+      "label": "현재 부담 진단",
+      "href": "/diagnosis",
+      "active": false
+    },
+    {
+      "label": "대안 탐색",
+      "href": "/explore",
+      "active": false
+    },
+    {
+      "label": "상세 비교",
+      "href": "/compare",
+      "active": false
+    }
+  ],
+  "hero": {
+    "badge": "주거비 + 교통비 + 통근시간의 가치",
+    "title_line1": "월세가 싸면,",
+    "title_line2_plain": "정말 ",
+    "title_line2_highlight": "덜 부담스러울까요?",
+    "description": "LOCA는 월세뿐 아니라 교통비와 출퇴근에 쓰이는 시간까지 함께 계산해 내 직장에 맞는 실제 주거 부담을 비교합니다.",
+    "cta_label": "내 부담 분석하기 →",
+    "cta_href": "/diagnosis"
+  },
+  "insight": {
+    "title_line1": "월세가 저렴해도",
+    "title_line2": "전체 부담은 더 커질 수 있습니다",
+    "description": "30,171개의 거주동-근무동 조합을 분석한 결과",
+    "highlight_number": "3,897",
+    "highlight_unit": "개",
+    "footnote": "월세는 저렴하지만 통근까지 포함하면 오히려 부담이 커지는 조합",
+    "matrix": {
+      "y_axis_label": "주거비",
+      "y_top": "높음",
+      "y_bottom": "낮음",
+      "x_axis_label": "통근부담(시간+교통비)",
+      "x_left": "낮음",
+      "x_right": "높음",
+      "quadrant_top_left": {
+        "label": "실질비용효율",
+        "icon": "chart"
+      },
+      "quadrant_top_right": {
+        "label": "월세 착시",
+        "icon": "alert"
+      },
+      "quadrant_bottom_left": {
+        "label": "숨은 효율",
+        "icon": "star"
+      },
+      "quadrant_bottom_right": {
+        "label": "종합 고부담",
+        "icon": "warn"
+      }
+    }
+  },
+  "comparison": {
+    "title": "서울의 주거지는 같은 방식으로 싸고 비싸지 않았습니다",
+    "card_a": {
+      "badge": "A. 주거절감·장거리통근형",
+      "rent_label": "평균 표면주거비",
+      "rent_value": "약 56.1만 원",
+      "commute_label": "평균 편도 통근",
+      "commute_value": "약 35.0분"
+    },
+    "middle": {
+      "top_label": "주거비",
+      "top_value": "약 30만 원 차이",
+      "bottom_label": "편도 통근",
+      "bottom_value": "약 14분 차이"
+    },
+    "card_b": {
+      "badge": "B. 고주거비·직주근접형",
+      "rent_label": "평균 표면주거비",
+      "rent_value": "약 86.3만 원",
+      "commute_label": "평균 편도 통근",
+      "commute_value": "약 21.4분"
+    },
+    "footnote": "LOCA는 서울 행정동을 주거비·통근시간·교통구조를 바탕으로 6가지 유형으로 분석했습니다.",
+    "tags": [
+      {
+        "label": "고비용\n통근부담형",
+        "color": "red"
+      },
+      {
+        "label": "광역분산\n통근형",
+        "color": "gray"
+      },
+      {
+        "label": "주거절감·\n장거리통근형",
+        "color": "teal"
+      },
+      {
+        "label": "근접통근·\n균형형",
+        "color": "gray"
+      },
+      {
+        "label": "저주거비·\n지역연계형",
+        "color": "yellow"
+      },
+      {
+        "label": "고주거비·\n직주근접형",
+        "color": "blue"
+      }
+    ]
+  },
+  "methodology": {
+    "title": "LOCA는 이렇게 분석했습니다",
+    "stats": [
+      {
+        "value": "577,745",
+        "unit": "건",
+        "label": "유효 전월세 거래",
+        "icon": "doc"
+      },
+      {
+        "value": "164,860",
+        "unit": "개",
+        "label": "서울 출근 OD 흐름",
+        "icon": "swap"
+      },
+      {
+        "value": "30,171",
+        "unit": "개",
+        "label": "거주지-근무지 분석 조합",
+        "icon": "people"
+      },
+      {
+        "value": "420",
+        "unit": "개",
+        "label": "행정동 통합부담 산출 완료",
+        "icon": "pin"
+      }
+    ],
+    "pipeline": [
+      "서울 출근 OD",
+      "TMAP 대중교통 경로",
+      "통근부담 산출",
+      "통근권 분석",
+      "행정동 유형화",
+      "근무지 기준 개인화 비교"
+    ]
+  },
+  "cta_banner": {
+    "title": "그럼 나는 지금 얼마나 부담하고 있을까요?",
+    "description": "현재 집과 실제 직장을 입력하면 내가 매달 부담하는 주거비와 통근 부담을 함께 계산해드려요.",
+    "button_label": "현재 부담 진단하기 →",
+    "button_href": "/diagnosis"
+  },
+  "faq": {
+    "title": "LOCA에게 물어보세요",
+    "questions": [
+      "월세 착시가 뭐예요?",
+      "통근시간을 왜 비용으로 계산하나요?",
+      "LOCA는 어떤 데이터를 분석했나요?"
+    ]
+  }
+}

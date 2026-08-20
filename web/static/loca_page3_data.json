@@ -1,0 +1,245 @@
+{
+  "brand": {
+    "name": "LOCA",
+    "href": "/"
+  },
+  "nav": [
+    {
+      "label": "현재 부담 진단",
+      "href": "/diagnosis",
+      "active": true
+    },
+    {
+      "label": "대안 탐색",
+      "href": "/explore",
+      "active": false
+    },
+    {
+      "label": "상세 비교",
+      "href": "/compare",
+      "active": false
+    }
+  ],
+  "summary": {
+    "lines": [
+      {
+        "text": "현재 집은 직장까지의 통근시간은",
+        "accent": false
+      },
+      {
+        "text": "짧은 편이지만,",
+        "accent": false
+      },
+      {
+        "text": "월환산 주거비가 전체 부담의",
+        "accent": true
+      },
+      {
+        "text": "큰 비중을 차지하고 있어요.",
+        "accent": true
+      }
+    ],
+    "lines2": [
+      {
+        "text": "출근 경로 마지막 구간에서는",
+        "accent": false
+      },
+      {
+        "text": "혼잡도 확인됩니다.",
+        "accent": false
+      }
+    ],
+    "donut": {
+      "center_label": "월 총 부담",
+      "center_prefix": "약",
+      "center_value": "99.8",
+      "center_unit": "만 원",
+      "callout": "비현금성 부담",
+      "segments": [
+        {
+          "value": 12.4,
+          "color": "#f7c1a4",
+          "label_top": "14%",
+          "label_left": "63%",
+          "label_color": "#4b5a55"
+        },
+        {
+          "value": 9.4,
+          "color": "#7b9ede",
+          "label_top": "33%",
+          "label_left": "78%",
+          "label_color": "#ffffff"
+        },
+        {
+          "value": 77.9,
+          "color": "#4bb3ad",
+          "label_top": "58%",
+          "label_left": "2%",
+          "label_color": "#ffffff"
+        }
+      ]
+    }
+  },
+  "route": {
+    "origin": "신사샤르망S",
+    "destination": "삼정KPMG",
+    "facts": [
+      {
+        "icon": "time",
+        "label": "편도",
+        "value": "17.2분"
+      },
+      {
+        "icon": "distance",
+        "label": "거리",
+        "value": "3.74km"
+      },
+      {
+        "icon": "transfer",
+        "label": "환승",
+        "value": "1회"
+      },
+      {
+        "icon": "walk",
+        "label": "도보",
+        "value": "10.9분"
+      },
+      {
+        "icon": "line",
+        "label": "이용노선",
+        "value": "신분당선 → 2호선"
+      },
+      {
+        "icon": "fare",
+        "label": "월 예상 교통비",
+        "value": "약 9.4 만 원"
+      }
+    ],
+    "stations": [
+      {
+        "name": "신사역",
+        "sub": "",
+        "color": "#e2564f",
+        "line_color": "#e2564f",
+        "transfer": false
+      },
+      {
+        "name": "논현역",
+        "sub": "",
+        "color": "#e2564f",
+        "line_color": "#e2564f",
+        "transfer": false
+      },
+      {
+        "name": "신논현역",
+        "sub": "",
+        "color": "#e2564f",
+        "line_color": "#e2564f",
+        "transfer": false
+      },
+      {
+        "name": "강남역",
+        "sub": "환승",
+        "color": "#1d1d1d",
+        "line_color": "#43c07a",
+        "transfer": true
+      },
+      {
+        "name": "역삼역",
+        "sub": "",
+        "color": "#43c07a",
+        "line_color": "#43c07a",
+        "transfer": false
+      },
+      {
+        "name": "삼정KPMG",
+        "sub": "",
+        "color": "#43c07a",
+        "line_color": "",
+        "transfer": false
+      }
+    ]
+  },
+  "congestion": {
+    "title": "혼잡 구간",
+    "note": "평일 오전 8시 기준",
+    "segments": [
+      {
+        "station": "신사역",
+        "icon": "low",
+        "percent": "17.2",
+        "percent_unit": "%",
+        "level": "여유",
+        "color": "#3fa9a4",
+        "highlight": false,
+        "warm": false
+      },
+      {
+        "station": "논현역",
+        "icon": "low",
+        "percent": "26.1",
+        "percent_unit": "%",
+        "level": "여유",
+        "color": "#3fa9a4",
+        "highlight": false,
+        "warm": false
+      },
+      {
+        "station": "신논현역",
+        "icon": "mid",
+        "percent": "47.2",
+        "percent_unit": "%",
+        "level": "보통",
+        "color": "#e5a52a",
+        "highlight": false,
+        "warm": false
+      },
+      {
+        "station": "강남역",
+        "icon": "high",
+        "percent": "약 81.1",
+        "percent_unit": "%",
+        "level": "혼잡",
+        "color": "#e2564f",
+        "highlight": true,
+        "warm": true
+      },
+      {
+        "station": "강남역 → 역삼역",
+        "icon": "high",
+        "percent": "",
+        "percent_unit": "",
+        "level": "혼잡",
+        "color": "#e2564f",
+        "highlight": false,
+        "warm": true
+      }
+    ],
+    "peak": {
+      "label": "최대 혼잡도",
+      "value": "81.1",
+      "unit": "%",
+      "badge": "혼잡",
+      "exposure_label": "편도 혼잡 노출",
+      "exposure_prefix": "약",
+      "exposure_value": "1.3",
+      "exposure_unit": "분"
+    }
+  },
+  "cta_banner": {
+    "title": "그럼 다른 지역은 어떨까요?",
+    "description_line1": "다양한 지역의 주거비·교통비·통근시간을 비교해",
+    "description_line2": "나에게 더 나은 선택지를 찾아보세요.",
+    "button_label": "대안 탐색하기 →",
+    "button_href": "/explore"
+  },
+  "faq": {
+    "title": "LOCA에게 물어보세요",
+    "avatar": "images/p3-circle-mascot.png",
+    "questions": [
+      "지금 제 부담에서 가장 큰 항목은 뭐예요?",
+      "어느 구간이 가장 혼잡해요?",
+      "통근시간 가치는 실제로 내는 돈인가요?"
+    ]
+  }
+}

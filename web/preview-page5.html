@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LOCA · 대안 비교</title>
+<link rel="stylesheet" href="static/loca_common.css">
+<style>
+  /* 공통 토큰·상단바·하단 채팅바는 static/loca_common.css 사용 */
+
+  /* ── 히어로 ─────────────────────────────── */
+  .hero {
+    background: linear-gradient(160deg, #f4f9fa, #fbfdfd 60%, #f2f8fa);
+    border: 1px solid rgba(20, 65, 62, 0.07);
+    border-radius: 20px;
+    display: grid;
+    grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.1fr) minmax(240px, 0.62fr);
+    align-items: center;
+    gap: 20px;
+    padding: 20px 0 20px 30px;
+    overflow: hidden;
+  }
+  .hero-title {
+    font-size: clamp(22px, 2.1vw, 27px);
+    font-weight: 800;
+    margin: 0 0 12px;
+  }
+  .hero-desc {
+    font-size: 14px;
+    line-height: 1.75;
+    color: var(--text-mid);
+    margin: 0;
+  }
+  .search-card {
+    background: var(--card-white);
+    border: 1px solid rgba(20, 65, 62, 0.09);
+    border-radius: 16px;
+    padding: 16px 20px 18px;
+    box-shadow: 0 3px 14px rgba(20, 65, 62, 0.05);
+  }
+  .search-label {
+    font-size: 13px;
+    color: var(--text-mid);
+    margin: 0 0 10px;
+  }
+  .search-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px;
+    align-items: stretch;
+  }
+  .search-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--card-white);
+    border: 1px solid rgba(20, 65, 62, 0.16);
+    border-radius: 12px;
+    padding: 12px 14px;
+    min-width: 0;
+  }
+  .search-field input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    font-family: inherit;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text-dark);
+    background: transparent;
+  }
+  .search-clear {
+    border: none;
+    background: none;
+    color: var(--text-light);
+    font-size: 17px;
+    cursor: pointer;
+    padding: 0 2px;
+    flex-shrink: 0;
+  }
+  .search-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background: var(--teal-700);
+    color: #fff;
+    font-family: inherit;
+    font-size: 15.5px;
+    font-weight: 800;
+    padding: 0 28px;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .hero-art {
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 0;
+  }
+  .hero-art img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  /* ── 판정 패널 ───────────────────────────── */
+  .panel {
+    background: var(--card-white);
+    border: 1px solid rgba(20, 65, 62, 0.08);
+    border-radius: 20px;
+    padding: 26px 28px;
+    margin-top: 22px;
+  }
+  .panel-title {
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 1.45;
+    margin: 0 0 20px;
+  }
+  .verdict-row {
+    display: grid;
+    grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.25fr) minmax(0, 0.94fr) minmax(0, 0.86fr);
+    gap: 16px;
+    align-items: stretch;
+  }
+  .vcard {
+    border-radius: 14px;
+    padding: 14px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 0;
+  }
+  .vcard.pink { background: #fdf2f3; border: 1px solid #f8dfe2; }
+  .vcard.plain { background: #fbfcfd; border: 1px solid rgba(20, 65, 62, 0.09); }
+  .vcard-note {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-light);
+    margin: -10px 0 12px;
+  }
+  .vcard-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--red-500);
+    margin: 0 0 14px;
+  }
+  .vcard.plain .vcard-title {
+    color: var(--text-mid);
+    font-weight: 700;
+  }
+  .compare-pair {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 14px;
+    width: 100%;
+  }
+  .pair-item { text-align: center; min-width: 0; }
+  .pair-value {
+    font-size: 25px;
+    font-weight: 800;
+    color: #c8515b;
+    white-space: nowrap;
+  }
+  .pair-value .unit { font-size: 14px; font-weight: 700; margin-left: 1px; }
+  .pair-label {
+    font-size: 12px;
+    color: var(--text-light);
+    margin-top: 4px;
+  }
+  .pair-arrow {
+    font-size: 18px;
+    color: var(--text-light);
+    padding-top: 6px;
+    flex-shrink: 0;
+  }
+  .pill {
+    margin-top: 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 10px;
+    padding: 10px 22px;
+    font-size: 14.5px;
+    font-weight: 800;
+    width: 100%;
+    justify-content: center;
+  }
+  .pill.rose { background: #fbe3e6; color: #c8515b; }
+  .pill.blue { background: #e6ecfa; color: var(--blue-600); }
+  .pill.rose-strong { background: #fadde2; color: #c8515b; }
+
+  /* 통근 계산 카드 (2분할) */
+  .vcard.split { padding-bottom: 14px; }
+  .split-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr);
+    gap: 16px;
+    width: 100%;
+    align-items: start;
+  }
+  .split-divider { background: rgba(20, 65, 62, 0.1); align-self: stretch; }
+  .split-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 0;
+  }
+  .split-label {
+    font-size: 12.5px;
+    color: var(--text-mid);
+    font-weight: 600;
+    text-align: center;
+  }
+  .split-sublabel {
+    font-size: 11.5px;
+    color: var(--text-light);
+    margin-top: 2px;
+    text-align: center;
+  }
+  .split-pair {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 10px;
+  }
+  .split-value {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text-dark);
+    white-space: nowrap;
+  }
+  .split-value .unit { font-size: 13px; font-weight: 700; margin-left: 1px; }
+  .split-value.accent { color: var(--blue-600); }
+  .split-value.muted { color: var(--text-light); font-weight: 700; }
+
+  /* 결론 카드 */
+  .conclusion {
+    background: #fdf2f3;
+    border: 1px solid #f8dfe2;
+    border-radius: 14px;
+    padding: 16px 18px 10px;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .conclusion-tag {
+    font-size: 12.5px;
+    font-weight: 800;
+    color: #c8515b;
+    margin: 0 0 8px;
+  }
+  .conclusion-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 18px;
+    font-weight: 800;
+    color: #c8515b;
+    margin: 0 0 10px;
+  }
+  .conclusion-title .mark { font-size: 17px; }
+  .conclusion-text {
+    font-size: 12.5px;
+    line-height: 1.65;
+    color: var(--text-mid);
+    margin: 0;
+  }
+  .conclusion-art {
+    margin: 6px auto 0;
+    width: 78%;
+    max-width: 210px;
+    height: auto;
+    display: block;
+  }
+
+  /* ── 추천 패널 ───────────────────────────── */
+  .recommend-row {
+    display: grid;
+    grid-template-columns: minmax(0, 0.78fr) repeat(3, minmax(0, 1fr));
+    gap: 20px;
+    align-items: start;
+  }
+  .recommend-intro { min-width: 0; }
+  .recommend-title {
+    font-size: clamp(20px, 1.8vw, 24px);
+    font-weight: 800;
+    line-height: 1.45;
+    margin: 4px 0 16px;
+  }
+  .recommend-desc {
+    font-size: 13.5px;
+    line-height: 1.8;
+    color: var(--text-mid);
+    margin: 0 0 20px;
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px 18px;
+    margin-bottom: 24px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    color: var(--text-mid);
+    font-weight: 600;
+  }
+  .legend-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .btn-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: var(--teal-700);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 800;
+    padding: 17px 30px;
+    border-radius: 14px;
+    width: 100%;
+    max-width: 300px;
+  }
+  .btn-cta:hover { background: var(--teal-500); color: #fff; }
+
+  /* 후보 카드 */
+  .cand-card {
+    border: 1px solid rgba(20, 65, 62, 0.1);
+    border-radius: 16px;
+    padding: 16px 18px 18px;
+    min-width: 0;
+    background: var(--card-white);
+  }
+  .cand-head {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 14px;
+  }
+  .cand-rank {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .cand-rank.teal { background: var(--teal-500); }
+  .cand-rank.blue { background: #4a7fd6; }
+  .cand-name {
+    font-size: 17px;
+    font-weight: 800;
+    line-height: 1.25;
+  }
+  .cand-type {
+    font-size: 12px;
+    color: var(--text-light);
+    margin-top: 3px;
+  }
+  .cand-badge {
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 7px 12px;
+    border-radius: 9px;
+    white-space: nowrap;
+  }
+  .cand-badge.green { background: #e6f4ee; color: #2c8163; }
+  .cand-badge.blue { background: #e8eefb; color: var(--blue-600); }
+  .cand-chevron { color: var(--text-light); font-size: 17px; }
+  .cand-metrics {
+    border-top: 1px solid rgba(20, 65, 62, 0.08);
+    padding-top: 12px;
+    display: grid;
+    gap: 9px;
+  }
+  .cand-metric {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text-mid);
+  }
+  .cand-metric img { width: 18px; height: auto; opacity: 0.8; }
+  .cand-metric .value {
+    font-size: 14.5px;
+    font-weight: 700;
+    color: var(--text-dark);
+    white-space: nowrap;
+  }
+  .cand-summary {
+    margin-top: 14px;
+    background: #f5faf8;
+    border: 1px solid rgba(20, 65, 62, 0.07);
+    border-radius: 11px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .cand-summary .label { font-size: 12.5px; color: var(--text-mid); }
+  .cand-summary .prefix { font-size: 12.5px; color: var(--text-mid); }
+  .cand-summary .value {
+    font-size: 19px;
+    font-weight: 800;
+    color: var(--teal-700);
+  }
+  .cand-summary .unit { font-size: 12.5px; color: var(--text-mid); }
+  .cand-note {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+  }
+  .cand-note img { width: 32px; height: auto; }
+  .cand-note p {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--text-mid);
+  }
+
+  @media (max-width: 1240px) {
+    .verdict-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .recommend-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 1040px) {
+    .hero { grid-template-columns: minmax(0, 1fr); padding: 22px; }
+    .hero-art { justify-content: center; }
+    .verdict-row, .recommend-row { grid-template-columns: minmax(0, 1fr); }
+    .search-row { grid-template-columns: minmax(0, 1fr); }
+    .search-submit { padding: 15px 28px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="shell">
+
+    <!-- 공통 상단바: data.brand(name, href), data.nav([{label, href, active}]), data.header_action(선택) 사용 -->
+<div class="header">
+  <a class="brand" href="preview.html">LOCA</a>
+  <nav class="nav">
+    
+    <a href="preview-page2.html" class="">현재 부담 진단</a>
+    
+    <a href="preview-page4.html" class="active">대안 탐색</a>
+    
+    <a href="preview-page6.html" class="">상세 비교</a>
+    
+  </nav>
+  
+</div>
+
+
+    <!-- 히어로: 거주지 입력 -->
+    <div class="hero">
+      <div class="hero-copy">
+        <h1 class="hero-title">내가 생각한 거주지는 어떨까요?</h1>
+        <p class="hero-desc">현재 고려 중인 지역을 입력하면<br>현재 집과 비교해 볼 수 있어요.</p>
+      </div>
+      <div class="search-card">
+        <p class="search-label">현재 고려 중인 거주지</p>
+        <form class="search-row" method="get" action="preview-page5.html">
+          <div class="search-field">
+            <input type="text" name="dong" value="신길1동" placeholder="예) 신길1동">
+            <button type="reset" class="search-clear" aria-label="지우기">✕</button>
+          </div>
+          <button type="submit" class="search-submit">현재 집과 비교하기 <span>→</span></button>
+        </form>
+      </div>
+      <div class="hero-art">
+        <img src="static/images/p5-hero.png" alt="">
+      </div>
+    </div>
+
+    <!-- 판정: 월세 착시 -->
+    <div class="panel">
+      <h2 class="panel-title">월세는 저렴하지만,<br>통근까지 계산하면 오히려 더 부담이에요.</h2>
+      <div class="verdict-row">
+
+        <!-- 월세 비교 -->
+        <div class="vcard pink">
+          <p class="vcard-title">주거비 비교</p>
+          <p class="vcard-note">월세 + 보증금 월환산 기준</p>
+          <div class="compare-pair">
+            <div class="pair-item">
+              <div class="pair-value">77.9<span class="unit">만원</span></div>
+              <div class="pair-label">현재 잠원동</div>
+            </div>
+            <div class="pair-arrow">→</div>
+            <div class="pair-item">
+              <div class="pair-value">64.9<span class="unit">만원</span></div>
+              <div class="pair-label">신길1동</div>
+            </div>
+          </div>
+          <span class="pill rose">월 13만원 절약</span>
+        </div>
+
+        <!-- 통근까지 계산하면 -->
+        <div class="vcard plain split">
+          <p class="vcard-title">하지만 통근까지 계산하면...</p>
+          <div class="split-body">
+            <div class="split-col">
+              <div class="split-label">편도 통근시간</div>
+              <div class="split-pair">
+                <span class="split-value">17.2<span class="unit">분</span></span>
+                <span class="pair-arrow">→</span>
+                <span class="split-value">42.9<span class="unit">분</span></span>
+              </div>
+              <span class="pill blue">+25.7분</span>
+            </div>
+            <div class="split-divider"></div>
+            <div class="split-col">
+              <div class="split-label">추가 통근부담</div>
+              <div class="split-sublabel">(교통비 + 시간가치)</div>
+              <div class="split-pair">
+                <span class="split-value muted">—</span>
+                <span class="pair-arrow">→</span>
+                <span class="split-value accent">+16.0<span class="unit">만원</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 최종 결과 -->
+        <div class="vcard pink">
+          <p class="vcard-title">최종 결과 (월 총부담)</p>
+          <div class="compare-pair">
+            <div class="pair-item">
+              <div class="pair-value">99.8<span class="unit">만원</span></div>
+              <div class="pair-label">현재 잠원동</div>
+            </div>
+            <div class="pair-arrow">→</div>
+            <div class="pair-item">
+              <div class="pair-value">102.8<span class="unit">만원</span></div>
+              <div class="pair-label">신길1동</div>
+            </div>
+          </div>
+          <span class="pill rose-strong">월 3만원 더 부담 <span>↑</span></span>
+        </div>
+
+        <!-- 결론 -->
+        <div class="conclusion">
+          <p class="conclusion-tag">결론</p>
+          <p class="conclusion-title"><span class="mark">⚠</span>월세 착시</p>
+          <p class="conclusion-text">월세 13만원 절약이 통근부담 증가로<br>상쇄되어 오히려 더 부담됩니다.</p>
+          <img class="conclusion-art" src="static/images/p5-coins.png" alt="">
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 추천 지역 -->
+    <div class="panel">
+      <div class="recommend-row">
+        <div class="recommend-intro">
+          <h2 class="recommend-title">그렇다면, 삼정KPMG 출근에는<br>어디가 더 나을까요?</h2>
+          <p class="recommend-desc">실제 역삼1동(삼정KPMG) 출근 흐름이 존재하는 지역 중<br>주거비·통근시간·교통비를 함께 비교하고,<br>서로 다른 부담구조 유형의 지역을 추천했어요.</p>
+          <div class="legend">
+            
+            <span class="legend-item"><span class="legend-dot" style="background: #4fb3ac"></span>주거비</span>
+            
+            <span class="legend-item"><span class="legend-dot" style="background: #3465c9"></span>통근시간(편도)</span>
+            
+            <span class="legend-item"><span class="legend-dot" style="background: #f0b429"></span>월 교통비</span>
+            
+            <span class="legend-item"><span class="legend-dot" style="background: #7b61c9"></span>환승</span>
+            
+          </div>
+          <a class="btn-cta" href="preview-page6.html">대안 상세 비교하기 <span>→</span></a>
+        </div>
+
+        
+        <div class="cand-card">
+          <div class="cand-head">
+            <span class="cand-rank teal">1</span>
+            <div>
+              <div class="cand-name">청림동</div>
+              <div class="cand-type">저주거비·지역연계형</div>
+            </div>
+            <span class="cand-badge green">총부담 절감 1위</span>
+            <a class="cand-chevron" href="preview-page6.html" aria-label="자세히 보기">›</a>
+          </div>
+          <div class="cand-metrics">
+            
+            <div class="cand-metric">
+              <img src="static/images/p5-icon-rent.png" alt="">
+              <span>대표 주거비</span>
+              <span class="value">50.3 만원</span>
+            </div>
+            
+            <div class="cand-metric">
+              <img src="static/images/p5-icon-time.png" alt="">
+              <span>편도 통근시간</span>
+              <span class="value">27.1분</span>
+            </div>
+            
+            <div class="cand-metric">
+              <img src="static/images/p5-icon-fare.png" alt="">
+              <span>월 교통비</span>
+              <span class="value">6.9만원</span>
+            </div>
+            
+            <div class="cand-metric">
+              <img src="static/images/p5-icon-transfer.png" alt="">
+              <span>환승</span>
+              <span class="value">1회</span>
+            </div>
+            
+          </div>
+          <div class="cand-summary">
+            <span class="label">현재 대비 총부담</span>
+            <span class="prefix">약</span>
+            <span class="value">23.0</span>
+            <span class="unit">만원 감소</span>
+          </div>
+          <div class="cand-note">
+            <img src="static/images/p5-note-1.png" alt="">
+            <p>총부담 절감폭이 가장 크지만,<br>강남 진입 구간은 혼잡해요.</p>
+          </div>
+        </div>
+        
+        <div class="cand-card">
+          <div class="cand-head">
+            <span class="cand-rank blue">2</span>
+            <div>
+              <div class="cand-name">난향동</div>
+              <div class="cand-type">주거절감·장거리통근형</div>
+            </div>
+            <span class="cand-badge blue">주거비 절감 1위</span>
+            <a class="cand-chevron" href="preview-page6.html" aria-label="자세히 보기">›</a>
+          </div>
+          <div class="cand-metrics">
+            
+            <div class="cand-metric">
+              <img src="static/images/p5-icon-rent.png" alt="">
+              <span>대표 주거비</span>
+              <span class="value">42.8 만원</span>
+            </div>
+            
+            <div class="cand-metric">
+              <img src="static/images/p5-icon-time.png" alt="">
+              <span>편도 통근시간</span>
+              <span class="value">40.5분</span>
+            </div>
+            
+            <div class="cand-metric">
+              <img src="static/images/p5-icon-fare.png" alt="">
+              <span>월 교통비</span>
+              <span class="value">6.9만원</span>
+            </div>
+            
+            <div class="cand-metric">
+              <img src="static/images/p5-icon-transfer.png" alt="">
+              <span>환승</span>
+              <span class="value">1회</span>
+            </div>
+            
+          </div>
+          <div class="cand-summary">
+            <span class="label">현재 대비 총부담</span>
+            <span class="prefix">약</span>
+            <span class="value">20.8</span>
+            <span class="unit">만원 감소</span>
+          </div>
+          <div class="cand-note">
+            <img src="static/images/p5-note-2.png" alt="">
+            <p>주거비 절감폭은 크지만,<br>통근시간이 길고 혼잡 구간도 있어요.</p>
+          </div>
+        </div>
+        
+        <div class="cand-card">
+          <div class="cand-head">
+            <span class="cand-rank teal">3</span>
+            <div>
+              <div class="cand-name">신대방1동</div>
+              <div class="cand-type">광역분산 통근형</div>
+            </div>
+            <span class="cand-badge green">환승 없는 출근</span>
+            <a class="cand-chevron" href="preview-page6.html" aria-label="자세히 보기">›</a>
+          </div>
+          <div class="cand-metrics">
+            
+            <div class="cand-metric">
+              <img src="static/images/p5-icon-rent.png" alt="">
+              <span>대표 주거비</span>
+              <span class="value">50.5 만원</span>
+            </div>
+            
+            <div class="cand-metric">
+              <img src="static/images/p5-icon-time.png" alt="">
+              <span>편도 통근시간</span>
+              <span class="value">30.2분</span>
+            </div>
+            
+            <div class="cand-metric">
+              <img src="static/images/p5-icon-fare.png" alt="">
+              <span>월 교통비</span>
+              <span class="value">6.9만원</span>
+            </div>
+            
+            <div class="cand-metric">
+              <img src="static/images/p5-icon-transfer.png" alt="">
+              <span>환승</span>
+              <span class="value">0회</span>
+            </div>
+            
+          </div>
+          <div class="cand-summary">
+            <span class="label">현재 대비 총부담</span>
+            <span class="prefix">약</span>
+            <span class="value">20.5</span>
+            <span class="unit">만원 감소</span>
+          </div>
+          <div class="cand-note">
+            <img src="static/images/p5-note-3.png" alt="">
+            <p>환승 없이 이동할 수 있지만,<br>낙성대 이후 혼잡이 이어져요.</p>
+          </div>
+        </div>
+        
+
+      </div>
+    </div>
+
+  <!-- 공통 하단 채팅바: data.chat.title, data.chat.chips, data.chat.mascot, data.chat.send_icon, data.chat.action 사용 -->
+<div class="chat-bar">
+  
+  <img class="chat-mascot" src="static/images/p5-mascot.png" alt="">
+  
+  <div class="chat-body">
+    <p class="chat-title">LOCA에게 궁금한 걸 물어보세요</p>
+    <form class="chat-input" method="get" action="preview-page5.html">
+      <div class="chat-chips">
+        
+        <button type="submit" name="q" value="신길1동은 왜 월세 착시에요?" class="chat-chip">신길1동은 왜 월세 착시에요?</button>
+        
+        <button type="submit" name="q" value="이 세 지역은 어떤 기준으로 추천했나요?" class="chat-chip">이 세 지역은 어떤 기준으로 추천했나요?</button>
+        
+        <button type="submit" name="q" value="통근시간이 짧은 후보를 우선해서 설명해줘" class="chat-chip">통근시간이 짧은 후보를 우선해서 설명해줘</button>
+        
+      </div>
+      <button type="submit" class="chat-send" aria-label="보내기">
+        <img src="static/images/p5-send.png" alt="">
+      </button>
+    </form>
+  </div>
+</div>
+
+  </div>
+</div>
+</body>
+</html>

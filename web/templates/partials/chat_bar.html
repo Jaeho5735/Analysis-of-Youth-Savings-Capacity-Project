@@ -1,0 +1,19 @@
+<!-- 공통 하단 채팅바: data.chat.title, data.chat.chips, data.chat.mascot, data.chat.send_icon, data.chat.action 사용 -->
+<div class="chat-bar">
+  {% if data.chat.mascot %}
+  <img class="chat-mascot" src="{{ url_for('static', filename=data.chat.mascot) }}" alt="">
+  {% endif %}
+  <div class="chat-body">
+    <p class="chat-title">{{ data.chat.title }}</p>
+    <form class="chat-input" method="get" action="{{ data.chat.action }}">
+      <div class="chat-chips">
+        {% for chip in data.chat.chips %}
+        <button type="submit" name="q" value="{{ chip }}" class="chat-chip">{{ chip }}</button>
+        {% endfor %}
+      </div>
+      <button type="submit" class="chat-send" aria-label="보내기">
+        <img src="{{ url_for('static', filename=data.chat.send_icon) }}" alt="">
+      </button>
+    </form>
+  </div>
+</div>

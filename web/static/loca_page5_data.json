@@ -1,0 +1,247 @@
+{
+  "brand": {
+    "name": "LOCA",
+    "href": "/"
+  },
+  "nav": [
+    {
+      "label": "현재 부담 진단",
+      "href": "/diagnosis",
+      "active": false
+    },
+    {
+      "label": "대안 탐색",
+      "href": "/explore",
+      "active": true
+    },
+    {
+      "label": "상세 비교",
+      "href": "/compare",
+      "active": false
+    }
+  ],
+  "hero": {
+    "title": "내가 생각한 거주지는 어떨까요?",
+    "description": "현재 고려 중인 지역을 입력하면\n현재 집과 비교해 볼 수 있어요.",
+    "art": "images/p5-hero.png",
+    "search": {
+      "label": "현재 고려 중인 거주지",
+      "value": "신길1동",
+      "placeholder": "예) 신길1동",
+      "submit_label": "현재 집과 비교하기",
+      "submit_href": "/explore/result"
+    }
+  },
+  "verdict": {
+    "title_line1": "월세는 저렴하지만,",
+    "title_line2": "통근까지 계산하면 오히려 더 부담이에요.",
+    "rent": {
+      "title": "주거비 비교",
+      "from_value": "77.9",
+      "from_unit": "만원",
+      "from_label": "현재 잠원동",
+      "to_value": "64.9",
+      "to_unit": "만원",
+      "to_label": "신길1동",
+      "pill": "월 13만원 절약",
+      "note": "월세 + 보증금 월환산 기준"
+    },
+    "commute": {
+      "title": "하지만 통근까지 계산하면...",
+      "time": {
+        "label": "편도 통근시간",
+        "from_value": "17.2",
+        "from_unit": "분",
+        "to_value": "42.9",
+        "to_unit": "분",
+        "pill": "+25.7분"
+      },
+      "extra": {
+        "label": "추가 통근부담",
+        "sublabel": "(교통비 + 시간가치)",
+        "from_value": "—",
+        "to_value": "+16.0",
+        "to_unit": "만원"
+      }
+    },
+    "total": {
+      "title": "최종 결과 (월 총부담)",
+      "from_value": "99.8",
+      "from_unit": "만원",
+      "from_label": "현재 잠원동",
+      "to_value": "102.8",
+      "to_unit": "만원",
+      "to_label": "신길1동",
+      "pill": "월 3만원 더 부담"
+    },
+    "conclusion": {
+      "tag": "결론",
+      "title": "월세 착시",
+      "text": "월세 13만원 절약이 통근부담 증가로\n상쇄되어 오히려 더 부담됩니다.",
+      "art": "images/p5-coins.png"
+    }
+  },
+  "recommend": {
+    "title_line1": "그렇다면, 삼정KPMG 출근에는",
+    "title_line2": "어디가 더 나을까요?",
+    "description": "실제 역삼1동(삼정KPMG) 출근 흐름이 존재하는 지역 중\n주거비·통근시간·교통비를 함께 비교하고,\n서로 다른 부담구조 유형의 지역을 추천했어요.",
+    "legend": [
+      {
+        "label": "주거비",
+        "color": "#4fb3ac"
+      },
+      {
+        "label": "통근시간(편도)",
+        "color": "#3465c9"
+      },
+      {
+        "label": "월 교통비",
+        "color": "#f0b429"
+      },
+      {
+        "label": "환승",
+        "color": "#7b61c9"
+      }
+    ],
+    "cta": {
+      "label": "대안 상세 비교하기",
+      "href": "/compare"
+    },
+    "cards": [
+      {
+        "rank": "1",
+        "rank_color": "teal",
+        "name": "청림동",
+        "type": "저주거비·지역연계형",
+        "badge": "총부담 절감 1위",
+        "badge_color": "green",
+        "href": "/compare?dong=청림동",
+        "metrics": [
+          {
+            "icon": "images/p5-icon-rent.png",
+            "label": "대표 주거비",
+            "value": "50.3 만원"
+          },
+          {
+            "icon": "images/p5-icon-time.png",
+            "label": "편도 통근시간",
+            "value": "27.1분"
+          },
+          {
+            "icon": "images/p5-icon-fare.png",
+            "label": "월 교통비",
+            "value": "6.9만원"
+          },
+          {
+            "icon": "images/p5-icon-transfer.png",
+            "label": "환승",
+            "value": "1회"
+          }
+        ],
+        "summary": {
+          "label": "현재 대비 총부담",
+          "prefix": "약",
+          "value": "23.0",
+          "unit": "만원 감소"
+        },
+        "note": {
+          "icon": "images/p5-note-1.png",
+          "text": "총부담 절감폭이 가장 크지만,\n강남 진입 구간은 혼잡해요."
+        }
+      },
+      {
+        "rank": "2",
+        "rank_color": "blue",
+        "name": "난향동",
+        "type": "주거절감·장거리통근형",
+        "badge": "주거비 절감 1위",
+        "badge_color": "blue",
+        "href": "/compare?dong=난향동",
+        "metrics": [
+          {
+            "icon": "images/p5-icon-rent.png",
+            "label": "대표 주거비",
+            "value": "42.8 만원"
+          },
+          {
+            "icon": "images/p5-icon-time.png",
+            "label": "편도 통근시간",
+            "value": "40.5분"
+          },
+          {
+            "icon": "images/p5-icon-fare.png",
+            "label": "월 교통비",
+            "value": "6.9만원"
+          },
+          {
+            "icon": "images/p5-icon-transfer.png",
+            "label": "환승",
+            "value": "1회"
+          }
+        ],
+        "summary": {
+          "label": "현재 대비 총부담",
+          "prefix": "약",
+          "value": "20.8",
+          "unit": "만원 감소"
+        },
+        "note": {
+          "icon": "images/p5-note-2.png",
+          "text": "주거비 절감폭은 크지만,\n통근시간이 길고 혼잡 구간도 있어요."
+        }
+      },
+      {
+        "rank": "3",
+        "rank_color": "teal",
+        "name": "신대방1동",
+        "type": "광역분산 통근형",
+        "badge": "환승 없는 출근",
+        "badge_color": "green",
+        "href": "/compare?dong=신대방1동",
+        "metrics": [
+          {
+            "icon": "images/p5-icon-rent.png",
+            "label": "대표 주거비",
+            "value": "50.5 만원"
+          },
+          {
+            "icon": "images/p5-icon-time.png",
+            "label": "편도 통근시간",
+            "value": "30.2분"
+          },
+          {
+            "icon": "images/p5-icon-fare.png",
+            "label": "월 교통비",
+            "value": "6.9만원"
+          },
+          {
+            "icon": "images/p5-icon-transfer.png",
+            "label": "환승",
+            "value": "0회"
+          }
+        ],
+        "summary": {
+          "label": "현재 대비 총부담",
+          "prefix": "약",
+          "value": "20.5",
+          "unit": "만원 감소"
+        },
+        "note": {
+          "icon": "images/p5-note-3.png",
+          "text": "환승 없이 이동할 수 있지만,\n낙성대 이후 혼잡이 이어져요."
+        }
+      }
+    ]
+  },
+  "chat": {
+    "title": "LOCA에게 궁금한 걸 물어보세요",
+    "mascot": "images/p5-mascot.png",
+    "send_icon": "images/p5-send.png",
+    "action": "/explore/result",
+    "chips": [
+      "신길1동은 왜 월세 착시에요?",
+      "이 세 지역은 어떤 기준으로 추천했나요?",
+      "통근시간이 짧은 후보를 우선해서 설명해줘"
+    ]
+  }
+}

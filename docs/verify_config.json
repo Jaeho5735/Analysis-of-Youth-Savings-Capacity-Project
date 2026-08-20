@@ -1,0 +1,26 @@
+{
+  "_설명": "값이 null 인 항목을 실제 컬럼명으로 채운 뒤 --run 으로 실행한다.",
+  "tx_csv": "c:\\MULTICAM_PROJECT\\data\\표면주거비_거래단위.csv",
+  "kakao_cache": "c:\\MULTICAM_PROJECT\\data\\kakao_cache.json",
+  "jibun_cache": "c:\\MULTICAM_PROJECT\\data\\jibun_cache.json",
+  "bjd_xlsx": "c:\\MULTICAM_PROJECT\\data\\대한민국 법정동 행정동 코드.xlsx",
+  "_거래파일_컬럼": "아래 4개는 필수",
+  "col_dong_code_final": "행정동코드_최종",
+  "col_bjd_name": "법정동명",
+  "col_road_name": "도로명",
+  "col_sigungu": "시군구명",
+  "_선택": "없으면 null 로 두면 된다",
+  "col_sido": "시도명",
+  "col_housing_type": "주택유형",
+  "col_dong_name_final": "행정동명_최종",
+  "_캐시": "kakao_cache 키 형식",
+  "kakao_key_sep": "|||",
+  "kakao_key_order": [
+    "sido",
+    "sigungu",
+    "road"
+  ],
+  "kakao_default_sido": "서울특별시",
+  "_표본B": "지번 정밀 거래를 식별할 수 있으면 채운다. 못 하면 null 로 두고 표본 A만 쓴다",
+  "col_jibun_key": null
+}

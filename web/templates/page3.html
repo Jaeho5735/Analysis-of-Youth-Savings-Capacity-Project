@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ data.brand.name }} · 현재 부담 진단 결과</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='loca_common.css') }}">
+<style>
+  /* 공통 토큰·상단바·하단바는 static/loca_common.css 사용 */
+
+  /* ── 상단 2단 (요약 + 경로) ── */
+  .top-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+    gap: 22px;
+  }
+  .card {
+    background: var(--card-white);
+    border: 1px solid rgba(20, 65, 62, 0.08);
+    border-radius: 20px;
+    padding: 26px 28px;
+    min-width: 0;
+  }
+  .card.summary { background: #f2faf9; }
+
+  .summary-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+    gap: 18px;
+    align-items: center;
+  }
+  .summary-text p {
+    margin: 0;
+    font-size: 19px;
+    font-weight: 700;
+    line-height: 1.62;
+  }
+  .summary-text p + p { margin-top: 20px; }
+  .summary-text .accent { color: var(--teal-500); }
+
+  .donut-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 280px;
+    justify-self: center;
+  }
+  .donut {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+  }
+  .donut::after {
+    content: "";
+    position: absolute;
+    inset: 26%;
+    background: var(--card-white);
+    border-radius: 50%;
+  }
+  .donut-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    z-index: 1;
+  }
+  .donut-center .c-label {
+    font-size: 13px;
+    color: var(--text-mid);
+    margin-bottom: 2px;
+  }
+  .donut-center .c-value {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-dark);
+    white-space: nowrap;
+  }
+  .donut-center .c-value .num {
+    font-size: 26px;
+    font-weight: 800;
+    margin: 0 2px;
+  }
+  .donut-label {
+    position: absolute;
+    font-size: 13px;
+    font-weight: 700;
+    z-index: 1;
+  }
+  .donut-callout {
+    position: absolute;
+    top: -8px;
+    right: -4px;
+    background: #fdece4;
+    color: #d1794a;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 6px 12px;
+    border-radius: 8px;
+    white-space: nowrap;
+  }
+
+  /* ── 경로 카드 ── */
+  .route-title {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 21px;
+    font-weight: 800;
+    margin: 0 0 6px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid rgba(20, 65, 62, 0.08);
+  }
+  .route-title .arrow { color: var(--text-light); font-weight: 700; }
+  .route-facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px 14px;
+    padding: 20px 0;
+    border-bottom: 1px solid rgba(20, 65, 62, 0.08);
+  }
+  .fact {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+  .fact img { width: 40px; height: 40px; flex-shrink: 0; }
+  .fact-label { font-size: 12.5px; color: var(--text-light); margin-bottom: 2px; }
+  .fact-value { font-size: 17px; font-weight: 800; color: var(--teal-700); }
+
+  .station-line {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    padding-top: 26px;
+  }
+  .station {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 0;
+  }
+  .station .dot {
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: var(--card-white);
+    border: 3px solid currentColor;
+    position: relative;
+    z-index: 1;
+  }
+  .station.transfer .dot {
+    width: 19px;
+    height: 19px;
+    border-width: 5px;
+  }
+  .station .rail {
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    right: -50%;
+    height: 3px;
+    background: currentColor;
+  }
+  .station .name {
+    margin-top: 10px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--text-mid);
+    text-align: center;
+  }
+  .station.transfer .name { color: var(--text-dark); }
+  .station .sub {
+    font-size: 11.5px;
+    color: var(--text-light);
+    text-align: center;
+  }
+
+  /* ── 혼잡 구간 ── */
+  .congestion-card {
+    margin-top: 22px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(210px, 250px);
+    gap: 26px;
+  }
+  .congestion-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin: 0 0 22px;
+  }
+  .congestion-head h2 { font-size: 21px; font-weight: 800; margin: 0; }
+  .congestion-head .note { font-size: 13px; color: var(--text-mid); }
+  .segment-row {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .segment {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .segment:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    top: 56px;
+    right: -8px;
+    width: 24px;
+    border-top: 2px dotted rgba(20, 65, 62, 0.28);
+  }
+  .segment.dot-warm:not(:last-child)::after { border-top-color: rgba(226, 86, 79, 0.45); }
+  .segment .station-name {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--text-mid);
+    text-align: center;
+  }
+  .segment.high .station-name { color: var(--red-500); }
+  .segment-body {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .segment-body img { width: 58px; height: 58px; flex-shrink: 0; }
+  .segment-value {
+    font-size: 19px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+  .segment-value .pct { font-size: 13px; font-weight: 700; }
+  .segment-level { font-size: 13px; font-weight: 700; margin-top: 2px; }
+
+  .peak-panel {
+    border-left: 1px solid rgba(20, 65, 62, 0.1);
+    padding-left: 26px;
+    min-width: 0;
+  }
+  .peak-label { font-size: 14px; font-weight: 700; color: var(--text-mid); }
+  .peak-value-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 4px 0 18px;
+  }
+  .peak-value {
+    font-size: 44px;
+    font-weight: 800;
+    color: var(--red-500);
+    white-space: nowrap;
+  }
+  .peak-value .unit { font-size: 22px; }
+  .peak-badge {
+    background: #fdeceb;
+    color: var(--red-500);
+    font-size: 13px;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 999px;
+  }
+  .peak-divider {
+    border-top: 1px solid rgba(20, 65, 62, 0.1);
+    padding-top: 16px;
+  }
+  .peak-exposure {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--red-500);
+    white-space: nowrap;
+  }
+  .peak-exposure .small { font-size: 18px; }
+
+  /* ── CTA 배너 ── */
+  .cta-banner {
+    margin-top: 22px;
+    background: linear-gradient(180deg, #5dc0c4, #4dadcb);
+    border-radius: 20px;
+    padding: 20px 40px;
+    display: flex;
+    align-items: center;
+    gap: 26px;
+    color: #fff;
+  }
+  .cta-banner img {
+    width: 132px;
+    height: auto;
+    display: block;
+    margin: -18px 0 -10px;
+    flex-shrink: 0;
+  }
+  .cta-text { min-width: 0; }
+  .cta-title { font-size: 24px; font-weight: 800; margin: 0 0 8px; }
+  .cta-desc { font-size: 14.5px; margin: 0; line-height: 1.6; opacity: 0.95; }
+  .cta-button {
+    margin-left: auto;
+    background: #fff;
+    color: #2f97a8;
+    font-size: 17px;
+    font-weight: 800;
+    padding: 16px 34px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .cta-button:hover { color: #23808f; }
+
+  @media (max-width: 1180px) {
+    .top-row { grid-template-columns: minmax(0, 1fr); }
+    .congestion-card { grid-template-columns: minmax(0, 1fr); }
+    .peak-panel { border-left: none; border-top: 1px solid rgba(20,65,62,0.1); padding: 20px 0 0; }
+  }
+  @media (max-width: 1040px) {
+    .summary-body { grid-template-columns: minmax(0, 1fr); }
+    .route-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .segment-row { grid-auto-flow: row; gap: 14px; }
+    .segment {
+      flex-direction: row;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 16px;
+      border-bottom: 1px solid rgba(20,65,62,0.06);
+      padding-bottom: 12px;
+    }
+    .segment .station-name { min-width: 120px; text-align: left; }
+    .segment:not(:last-child)::after { display: none; }
+    .cta-banner { flex-wrap: wrap; }
+    .cta-button { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="shell">
+
+    <!-- 공통 상단바 -->
+    {% include 'partials/header.html' %}
+
+    <div class="top-row">
+
+      <!-- 요약 + 도넛 -->
+      <div class="card summary">
+        <div class="summary-body">
+          <div class="summary-text">
+            <p>
+              {% for line in data.summary.lines %}{% if line.accent %}<span class="accent">{{ line.text }}</span>{% else %}{{ line.text }}{% endif %}<br>{% endfor %}
+            </p>
+            <p>
+              {% for line in data.summary.lines2 %}{{ line.text }}<br>{% endfor %}
+            </p>
+          </div>
+
+          <div class="donut-wrap">
+            <span class="donut-callout">{{ data.summary.donut.callout }}</span>
+            <div class="donut"
+                 data-values="{% for s in data.summary.donut.segments %}{{ s.value }}{% if not loop.last %},{% endif %}{% endfor %}"
+                 data-colors="{% for s in data.summary.donut.segments %}{{ s.color }}{% if not loop.last %},{% endif %}{% endfor %}">
+              {% for s in data.summary.donut.segments %}
+              <span class="donut-label" data-seg="{{ loop.index0 }}" style="top: {{ s.label_top }}; left: {{ s.label_left }}; color: {{ s.label_color }}"></span>
+              {% endfor %}
+              <div class="donut-center">
+                <span class="c-label">{{ data.summary.donut.center_label }}</span>
+                <span class="c-value">{{ data.summary.donut.center_prefix }}<span class="num">{{ data.summary.donut.center_value }}</span>{{ data.summary.donut.center_unit }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 경로 카드 -->
+      <div class="card">
+        <h2 class="route-title">
+          {{ data.route.origin }}<span class="arrow">→</span>{{ data.route.destination }}
+        </h2>
+
+        <div class="route-facts">
+          {% for fact in data.route.facts %}
+          <div class="fact">
+            <img src="{{ url_for('static', filename='images/p3-icon-' ~ fact.icon ~ '.png') }}" alt="">
+            <div>
+              <div class="fact-label">{{ fact.label }}</div>
+              <div class="fact-value">{{ fact.value }}</div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <div class="station-line">
+          {% for st in data.route.stations %}
+          <div class="station {% if st.transfer %}transfer{% endif %}" style="color: {{ st.color }}">
+            {% if st.line_color %}<span class="rail" style="color: {{ st.line_color }}"></span>{% endif %}
+            <span class="dot"></span>
+            <span class="name">{{ st.name }}</span>
+            {% if st.sub %}<span class="sub">{{ st.sub }}</span>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- 혼잡 구간 -->
+    <div class="card congestion-card">
+      <div>
+        <div class="congestion-head">
+          <h2>{{ data.congestion.title }}</h2>
+          <span class="note">{{ data.congestion.note }}</span>
+        </div>
+
+        <div class="segment-row">
+          {% for seg in data.congestion.segments %}
+          <div class="segment {% if seg.highlight %}high{% endif %} {% if seg.warm %}dot-warm{% endif %}">
+            <span class="station-name" style="color: {{ seg.color }}">{{ seg.station }}</span>
+            <div class="segment-body">
+              <img src="{{ url_for('static', filename='images/p3-crowd-' ~ seg.icon ~ '.png') }}" alt="">
+              <div>
+                {% if seg.percent %}
+                <div class="segment-value" style="color: {{ seg.color }}">{{ seg.percent }}<span class="pct">{{ seg.percent_unit }}</span></div>
+                {% endif %}
+                <div class="segment-level" style="color: {{ seg.color }}">{{ seg.level }}</div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="peak-panel">
+        <div class="peak-label">{{ data.congestion.peak.label }}</div>
+        <div class="peak-value-row">
+          <span class="peak-value">{{ data.congestion.peak.value }}<span class="unit">{{ data.congestion.peak.unit }}</span></span>
+          <span class="peak-badge">{{ data.congestion.peak.badge }}</span>
+        </div>
+        <div class="peak-divider">
+          <div class="peak-label">{{ data.congestion.peak.exposure_label }}</div>
+          <div class="peak-exposure"><span class="small">{{ data.congestion.peak.exposure_prefix }}</span> {{ data.congestion.peak.exposure_value }}<span class="small">{{ data.congestion.peak.exposure_unit }}</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CTA 배너 -->
+    <div class="cta-banner">
+      <img src="{{ url_for('static', filename='images/p3-cta-mascot.png') }}" alt="">
+      <div class="cta-text">
+        <p class="cta-title">{{ data.cta_banner.title }}</p>
+        <p class="cta-desc">{{ data.cta_banner.description_line1 }}<br>{{ data.cta_banner.description_line2 }}</p>
+      </div>
+      <a class="cta-button" href="{{ data.cta_banner.button_href }}">{{ data.cta_banner.button_label }}</a>
+    </div>
+
+    <!-- 공통 하단바 -->
+    {% include 'partials/faq_bar.html' %}
+
+  </div>
+</div>
+<script>
+  /* 도넛: JSON의 만원 값(data-values)에서 구성비를 계산해 각도와 라벨을 함께 생성.
+     누적 퍼센트를 JSON에 직접 적어두면 총부담이 100만원이 아닐 때 각도와 라벨이 어긋난다. */
+  document.querySelectorAll('.donut').forEach(function (donut) {
+    var values = (donut.dataset.values || '').split(',').map(function (v) { return parseFloat(v) || 0; });
+    var colors = (donut.dataset.colors || '').split(',');
+    var total = values.reduce(function (a, b) { return a + b; }, 0);
+    if (!total) return;
+    var stops = [];
+    var acc = 0;
+    values.forEach(function (v, i) {
+      var start = acc / total * 100;
+      acc += v;
+      stops.push((colors[i] || '#ccc').trim() + ' ' + start.toFixed(2) + '% ' + (acc / total * 100).toFixed(2) + '%');
+    });
+    donut.style.background = 'conic-gradient(' + stops.join(', ') + ')';
+    donut.querySelectorAll('.donut-label').forEach(function (label) {
+      var i = parseInt(label.dataset.seg, 10);
+      if (isNaN(i) || !values[i]) return;
+      label.textContent = (values[i] / total * 100).toFixed(1) + '%';
+    });
+  });
+</script>
+</body>
+</html>

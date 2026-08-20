@@ -16,22 +16,33 @@
 
 대신 `dim_time_value`에 시간가치를 행으로 두고, 뷰에서 `CROSS JOIN` 한다. 420행 × 시나리오 수가 자동으로 나오고, 기준을 바꾸는 민감도 분석이 `WHERE time_value_code = ...` 한 줄이 된다. 소득 시나리오 5단계, 생활비 환산 가정도 같은 방식이다.
 
+이 원칙은 서비스 조회 계층까지 이어진다. `src/db/query_dong.py`가 총부담과 시간비용을 조회 시점에 계산하는 것이 그 결과다.
+
 ### ② 행정동코드는 CHAR(8)이다
 
 숫자가 아니라 식별자다. INT로 받으면 선행 0이 날아가고 결합키가 조용히 깨진다. 이름 결합은 스키마 차원에서 막았다 — 전처리에서 "창신제1동" vs "창신1동" 같은 표기 차이를 181건 겪었기 때문이다.
+
+컬럼명은 `dong_code8`로 통일돼 있다. `dim_region`만 10자리 원본 코드를 `dong_code10`에 함께 보관한다.
 
 ### ③ 집계값과 원자료를 둘 다 적재한다
 
 `fact_dong_burden`(420행)에 이미 동별 표면주거비가 있는데 `fact_rent_transaction`(57만 행)도 넣는 이유는, **평균값에서 조건부 평균을 역산할 수 없기** 때문이다. 반 평균 70점을 알아도 남학생만의 평균은 원점수가 있어야 구한다. 사용자 예산 조건을 반영한 대표값은 거래 단위 원자료가 있어야 나온다.
 
+### ④ 값이 없는 것과 값을 못 믿는 것을 구분한다
+
+`dim_dong_reliability`가 그 장치다. 표면주거비가 없는 동(`no_data`)과 있지만 배정이 부정확한 동(`unreliable`, `low_confidence`)은 서비스에서 다르게 다뤄야 한다. 이걸 컬럼 플래그로 흩어놓지 않고 등급 하나로 모았다.
+
 ## 파일과 실행 순서
 
 ```
-01_schema.sql        스키마 (테이블 12 + 뷰 2)
-01b_seed_params.sql  파라미터 초기값 (CSV 소스가 없는 값)
+01_schema.sql              스키마 (테이블 12 + 뷰 2)
+01b_seed_params.sql        파라미터 초기값 (CSV 소스가 없는 값)
       ↓  여기서 src/db/load_to_db.py 실행
-02_qc.sql            적재 검증 7종
-02_analysis_queries.sql  분석 쿼리 6종
+02_qc.sql                  적재 검증 7종
+02_analysis_queries.sql    분석 쿼리 6종
+      ↓  서비스용 테이블
+dim_fallback_candidate.sql 결측 동 인근 후보 16행
+dim_dong_reliability.sql   행정동 신뢰도 등급 427행
 ```
 
 ```sql
@@ -42,7 +53,11 @@ SOURCE C:/MULTICAM_PROJECT/sql/01b_seed_params.sql;
 -- (적재)
 SOURCE C:/MULTICAM_PROJECT/sql/02_qc.sql;
 SOURCE C:/MULTICAM_PROJECT/sql/02_analysis_queries.sql;
+SOURCE C:/MULTICAM_PROJECT/sql/dim_fallback_candidate.sql;
+SOURCE C:/MULTICAM_PROJECT/sql/dim_dong_reliability.sql;
 ```
+
+Workbench를 쓴다면 연결된 탭에서 `File > Open SQL Script`로 열고 번개(⚡) 버튼을 누른다. `unconnected` 탭에서는 실행 버튼이 비활성이다.
 
 ### 01_schema.sql
 
@@ -60,11 +75,15 @@ SOURCE C:/MULTICAM_PROJECT/sql/02_analysis_queries.sql;
 | | `fact_commute_route` | 30,636 |
 | | `fact_rent_transaction` | 577,745 |
 | 정책 | `dim_policy` | (미확정) |
+| 서비스 | `dim_fallback_candidate` | 16 |
+| | `dim_dong_reliability` | 427 |
 
 뷰 두 개가 반복 계산을 흡수한다.
 
 - `v_dong_burden` — 시간가치 시나리오별 통합부담. 파라미터 테이블과 `CROSS JOIN`
 - `v_district_commute` — 업무지구 × 거주동 대표 통근값. 지구 구성동을 유입량 가중평균하고, `route_coverage`로 경로 확보율을 같이 낸다
+
+`fact_dong_type`은 `(dong_code8, k_value)` 복합키다. 조회할 때 `k_value = 6` 조건을 빼면 행이 중복되거나 사라진다.
 
 ### 01b_seed_params.sql
 
@@ -88,6 +107,8 @@ SOURCE C:/MULTICAM_PROJECT/sql/02_analysis_queries.sql;
 
 **QC6에 표면주거비 집계 대조를 넣었다.** 파이프라인이 계산한 `fact_dong_burden.surface_housing_cost`와 유형화 입력값(`fact_dong_type_features`)을 비교한다. 두 트랙이 같은 원자료 위에 서 있는지 확인하는 장치이며, 실측 결과 420개 동 전부 차이 0이었다.
 
+다만 **이 대조가 배정의 정확성까지 보증하지는 않는다.** 두 계산이 같은 캐시를 쓰면 둘 다 똑같이 틀릴 수 있다. 행정동 배정 자체의 정확도는 `src/analysis/verify_road_accuracy.py`가 따로 검증했고, 결과는 `dim_dong_reliability`에 등급으로 들어 있다.
+
 **QC5도 이 파일의 핵심이다.** `fact_dong_burden`에 파이썬이 계산한 순위를 `rank_burden_src`로 같이 저장해두고, SQL 윈도우 함수 결과와 대조한다. 적재 과정에서 값이 뒤틀리지 않았음을 자동으로 증명한다.
 
 실측 결과 불일치 10개가 나왔고 차이는 전부 ±1이었다. 표면주거비를 INT로 선언해 소수점이 잘린 탓이며, 값이 촘촘한 구간에서만 순위가 엇갈린다. 산식은 동일하다.
@@ -102,6 +123,56 @@ SOURCE C:/MULTICAM_PROJECT/sql/02_analysis_queries.sql;
 | Q4 | 소득 시나리오별 저축 여력 | `CROSS JOIN` 파라미터 격자 |
 | Q5 | 6개 유형 프로파일 | `GROUP BY` + 조건부 집계 |
 | Q6 | 정책·금융상품 조건 매칭 | NULL=무제한 규칙 조건 조인 |
+
+---
+
+## 서비스용 테이블 2종
+
+분석 결과가 아니라 **서비스가 화면에서 쓰는 판단**을 담는다. 둘 다 DDL + 시드 + QC 쿼리가 한 파일에 있어서 실행하면 검증까지 된다. FK가 `dim_region(dong_code8)`을 참조하므로 기본 스키마 적재 후에 돌린다.
+
+### dim_fallback_candidate (16행)
+
+표면주거비가 산출되지 않은 7개 동을 사용자가 요청했을 때 제시할 인근 행정동이다.
+
+**값을 대체하지 않는다.** 오륜동 자리에 방이2동 숫자를 넣는 것이 아니라, 산출 불가 사유를 안내하고 후보를 선택지로 보여준다. 화면에 뜨는 동 이름은 항상 그 데이터의 주인이다.
+
+결측 7개 동은 전부 대단지 아파트 지역이라 비아파트 임차 거래가 없는 곳이다. 옆 동 값을 채우면 "이 동네에 이 가격대 매물이 있다"는 뜻이 되고, 실제로는 없으므로 사용자가 헛걸음한다. 군집 단계에서 kNN 보완을 기각한 것과 같은 이유다.
+
+후보 선정은 지리적 근접성 기준이며 같은 자치구로 한정한다. 통근시간 유사도를 쓰지 않은 이유는, 사용자가 특정 동을 지목한 이유가 통근시간만은 아니기 때문이다.
+
+레포에 행정동 좌표가 없어 법정동 공유 관계로 24개를 자동 추출한 뒤, 행정동 경계도로 육안 검증해 16개로 확정했다. 근거는 [`docs/결측동_인근후보_확정근거.md`](../docs/결측동_인근후보_확정근거.md).
+
+| 컬럼 | 내용 |
+|---|---|
+| `missing_dong_code` / `candidate_dong_code` | 결측 동과 후보 동 |
+| `display_order` | 화면 노출 순서 (인접도 기준) |
+| `shared_bjd_name` | 공유하는 법정동명. 안내 문구에 쓴다 |
+| `verified_by` / `verified_on` | 육안 검증자와 일자 |
+
+`verified_by`를 컬럼으로 둔 이유는 이것이 자동 추출 결과가 아니라 **사람이 지도로 확인한 판단**이기 때문이다.
+
+### dim_dong_reliability (427행)
+
+행정동별 표면주거비 신뢰도 등급이다.
+
+전월세 거래의 46.6%가 도로명 근사로 행정동에 배정됐다. 캐시 키가 `시도|||자치구|||도로명` 형식이라 건물번호가 없고, 하나의 도로 전체에 행정동 하나를 복사해 쓴다. 단독다가구는 국토부 지번 마스킹 때문에 정밀 배정이 구조적으로 불가능하다.
+
+정답을 아는 거래 5,821건으로 역산한 결과 **정확도 80% 내외, 오배정 9% 이상**이다. 도로유형별로 갈리는데 길이 82.7%, 로가 44.0%다. 간선도로가 여러 동을 관통한다는 가설과 정합한다.
+
+| status | 개수 | 조건 |
+|---|---|---|
+| `ok` | 390 | — |
+| `low_confidence` | 26 | 정확도 50% 미만 7 / 교통비 커버리지 70% 미만 9 / 거래 30건 미만 10 |
+| `unreliable` | 4 | 검증 정확도 0%. 마장·성북·석관·구산동 |
+| `no_data` | 7 | 표면주거비 미산출 |
+
+`unreliable` 4개 동은 거래가 소수 간선도로에 몰려 있고 그 도로들의 캐시 대표점이 전부 이웃 동에 찍혔다. 성북동은 검증 거래 66건이 동소문로 하나에 있고 그 도로가 길음2동으로 잡힌다. "일부 부정확"이 아니라 "체계적으로 이웃 동 값"이라 `low_confidence`와 분리했다.
+
+검증 방법과 수치는 [`docs/표면주거비_배정_신뢰도.md`](../docs/표면주거비_배정_신뢰도.md).
+
+**⚠️ 이 파일은 수기로 편집하지 않는다.** `src/analysis/build_dong_reliability.py`가 생성한다. 임계값을 바꾸려면 그 스크립트 상단 `TH_` 상수를 고치고 다시 돌린다.
+
+---
 
 ## 대표 결과
 
@@ -121,6 +192,8 @@ Q2·Q3에서 **"강남 근무자와 여의도 근무자의 추천 상위 10곳 �
 
 **Q4는 아직 발표에 쓸 수 없다.** 생활비 환산 가정이 자리표시용이라 350만 원 시나리오에서 415개 동 전부가 저축률 20%를 달성한다고 나온다. 변별력이 없다.
 
+**`fact_dong_burden.oneway_commute_min`은 근무지와 무관하다.** 거주동 거주자의 모든 목적지를 가중평균한 값이다. "이 동에서 강남까지 몇 분"이 아니다. 근무지 기준 통근값이 필요하면 `fact_commute_route`(거주동 × 근무동)를 써야 한다. 현재 서비스 5페이지가 이 구분 없이 평균값을 쓰고 있어 교체를 논의 중이다.
+
 ## 요약
 
 | 파일 | 역할 | 실행 시점 |
@@ -129,3 +202,5 @@ Q2·Q3에서 **"강남 근무자와 여의도 근무자의 추천 상위 10곳 �
 | `01b_seed_params.sql` | 파라미터 초기값 | 스키마 직후, 가정 변경 시 |
 | `02_qc.sql` | 적재 검증 7종 | 적재 직후 매번 |
 | `02_analysis_queries.sql` | 분석 쿼리 6종 | QC 통과 후 |
+| `dim_fallback_candidate.sql` | 결측 동 인근 후보 16행 | 최초 1회, 후보 변경 시 |
+| `dim_dong_reliability.sql` | 신뢰도 등급 427행 | 임계값 변경 시 재생성 후 |

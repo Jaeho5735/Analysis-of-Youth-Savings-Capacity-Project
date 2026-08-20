@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LOCA</title>
+<link rel="stylesheet" href="static/loca_common.css">
+<style>
+  .shell { padding: 32px 40px 40px; }
+
+  /* Hero */
+  .hero {
+    background: linear-gradient(135deg, var(--teal-100), #f4fbfa);
+    border-radius: 22px;
+    padding: 48px 48px;
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 24px;
+    align-items: center;
+  }
+  .hero-badge {
+    display: inline-block;
+    background: var(--card-white);
+    color: var(--teal-700);
+    font-size: 13px;
+    font-weight: 700;
+    padding: 8px 16px;
+    border-radius: 999px;
+    margin-bottom: 20px;
+  }
+  .hero-title {
+    font-size: 40px;
+    font-weight: 800;
+    line-height: 1.3;
+    margin: 0 0 18px;
+  }
+  .hero-title .highlight { color: var(--teal-500); }
+  .hero-desc {
+    font-size: 15px;
+    line-height: 1.7;
+    color: var(--text-mid);
+    max-width: 480px;
+    margin: 0 0 28px;
+  }
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--teal-700);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    padding: 14px 26px;
+    border-radius: 999px;
+    border: none;
+    cursor: pointer;
+  }
+  .hero-art {
+    position: relative;
+    border-radius: 18px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+  }
+  .hero-art img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  /* Two column: insight + comparison */
+  .row-2col {
+    display: grid;
+    grid-template-columns: minmax(0, 0.92fr) minmax(0, 1fr);
+    gap: 24px;
+    margin-top: 24px;
+    align-items: stretch;
+  }
+  .panel {
+    background: var(--card-white);
+    border: 1px solid rgba(20,65,62,0.08);
+    border-radius: 20px;
+    padding: 28px;
+    min-width: 0;
+  }
+  .panel-title {
+    font-size: 21px;
+    font-weight: 800;
+    line-height: 1.35;
+    margin: 0 0 18px;
+    min-height: 57px;
+  }
+  .panel-desc {
+    font-size: 13.5px;
+    color: var(--text-mid);
+    margin: 0 0 6px;
+  }
+  .big-stat {
+    font-size: clamp(30px, 3.4vw, 46px);
+    font-weight: 800;
+    color: var(--teal-500);
+    margin: 4px 0 6px;
+    line-height: 1.1;
+    overflow-wrap: anywhere;
+  }
+  .big-stat .unit { font-size: 22px; font-weight: 700; margin-left: 4px; }
+  .footnote {
+    font-size: 13px;
+    color: var(--text-light);
+    line-height: 1.6;
+  }
+
+  /* Insight matrix */
+  .insight-body {
+    display: grid;
+    grid-template-columns: minmax(150px, 1fr) minmax(168px, 1.05fr);
+    gap: 14px;
+    align-items: center;
+  }
+  .insight-left { min-width: 0; }
+  .matrix-wrap {
+    display: grid;
+    grid-template-columns: 16px 26px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto auto;
+    gap: 4px 6px;
+    align-items: stretch;
+  }
+  .matrix-axis-y {
+    grid-column: 1;
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    writing-mode: vertical-rl;
+    text-orientation: upright;
+    font-size: 11.5px;
+    font-weight: 800;
+    color: var(--text-mid);
+    letter-spacing: 0.5px;
+  }
+  .matrix-ylabel {
+    grid-column: 2;
+    grid-row: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10.5px;
+    color: var(--text-light);
+    font-weight: 700;
+    padding: 2px 0;
+    writing-mode: horizontal-tb;
+  }
+  .matrix-ylabel .axis-arrow {
+    flex: 1;
+    width: 1px;
+    background: linear-gradient(180deg, rgba(20,65,62,0.28), rgba(20,65,62,0.08));
+    margin: 4px 0;
+  }
+  .matrix-grid {
+    grid-column: 3;
+    grid-row: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: 1fr 1fr;
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+    aspect-ratio: 1.15;
+  }
+  .quad {
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 6px 4px;
+    min-width: 0;
+    text-align: center;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--text-mid);
+    background: var(--teal-100);
+    word-break: break-all;
+    overflow-wrap: anywhere;
+  }
+  .quad.warn { background: #fdeceb; color: var(--red-500); }
+  .quad .icon-bullet {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 800;
+  }
+  .matrix-xlabel {
+    grid-column: 3;
+    grid-row: 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 10.5px;
+    color: var(--text-light);
+    font-weight: 700;
+    padding: 2px 2px 0;
+  }
+  .matrix-xlabel .axis-arrow {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(20,65,62,0.08), rgba(20,65,62,0.28));
+  }
+  .matrix-xaxis-title {
+    grid-column: 3;
+    grid-row: 3;
+    text-align: center;
+    font-size: 11.5px;
+    color: var(--text-mid);
+    font-weight: 800;
+    letter-spacing: 0.3px;
+  }
+
+  /* Comparison cards */
+  .compare-title {
+    font-size: 21px;
+    font-weight: 800;
+    line-height: 1.35;
+    margin: 0 0 18px;
+    min-height: 57px;
+  }
+  .compare-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.45fr) minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+  }
+  .compare-card {
+    border-radius: 16px;
+    padding: 18px 18px;
+    border: 1px solid rgba(20,65,62,0.08);
+    min-width: 0;
+  }
+  .compare-card.a { background: linear-gradient(180deg, #e6f5f3, #f7fcfb); }
+  .compare-card.b { background: linear-gradient(180deg, #e9eefb, #f8f9fe); }
+  .compare-badge {
+    display: block;
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: 999px;
+    margin-bottom: 14px;
+    text-align: center;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .compare-badge.a { background: var(--teal-500); color: #fff; }
+  .compare-badge.b { background: var(--blue-600); color: #fff; }
+  .compare-label { font-size: 12px; color: var(--text-light); margin: 10px 0 2px; }
+  .compare-value { font-size: 17px; font-weight: 800; overflow-wrap: anywhere; }
+  .compare-value.a { color: var(--teal-700); }
+  .compare-value.b { color: var(--blue-600); }
+  .compare-mid { text-align: center; padding: 0 2px; min-width: 0; }
+  .compare-mid .mid-label { font-size: 12px; color: var(--text-light); font-weight: 600; }
+  .compare-mid .mid-value { font-size: 14px; font-weight: 800; margin: 2px 0 8px; }
+  .compare-mid .mid-arrow { font-size: 20px; color: var(--text-light); margin: 4px 0; }
+
+  .compare-footnote {
+    font-size: 12.5px;
+    color: var(--text-light);
+    margin: 18px 0 16px;
+  }
+  .tag-grid {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .tag {
+    border-radius: 10px;
+    padding: 8px 3px;
+    text-align: center;
+    font-size: 10.5px;
+    font-weight: 700;
+    line-height: 1.35;
+    white-space: pre-line;
+    word-break: break-all;
+    overflow-wrap: anywhere;
+  }
+  .tag.red { background: #fdeceb; color: var(--red-500); }
+  .tag.gray { background: #eef1f0; color: var(--text-mid); }
+  .tag.teal { background: var(--teal-100); color: var(--teal-700); }
+  .tag.yellow { background: #fbf3de; color: var(--yellow-500); }
+  .tag.blue { background: #e9eefb; color: var(--blue-600); }
+
+  /* Methodology */
+  .method-panel {
+    margin-top: 24px;
+    background: var(--card-white);
+    border: 1px solid rgba(20,65,62,0.08);
+    border-radius: 20px;
+    padding: 28px;
+  }
+  .method-title { font-size: 18px; font-weight: 800; margin: 0 0 20px; }
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .stat-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 6px;
+  }
+  .stat-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: var(--teal-100);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--teal-700);
+    font-weight: 800;
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+  .stat-value { font-size: 20px; font-weight: 800; }
+  .stat-value .unit { font-size: 13px; font-weight: 700; margin-left: 2px; color: var(--text-mid); }
+  .stat-label { font-size: 12.5px; color: var(--text-light); margin-top: 2px; }
+
+  .pipeline-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 22px;
+    flex-wrap: wrap;
+  }
+  .pipeline-step {
+    font-size: 12.5px;
+    color: var(--text-mid);
+    font-weight: 600;
+  }
+  .pipeline-arrow { color: var(--text-light); font-size: 13px; }
+
+  /* CTA banner */
+  .cta-banner {
+    margin-top: 24px;
+    background: linear-gradient(180deg, #72cccd, #62b5d2);
+    border-radius: 20px;
+    padding: 22px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    color: #fff;
+    position: relative;
+  }
+  .cta-left { display: flex; align-items: center; gap: 20px; }
+  .cta-mascot {
+    width: 128px;
+    height: auto;
+    display: block;
+    margin: -22px 0 -14px;
+    flex-shrink: 0;
+  }
+  .cta-circle-mascot {
+    position: absolute;
+    right: -10px;
+    bottom: -34px;
+    width: 116px;
+    height: 116px;
+  }
+  .cta-title { font-size: 21px; font-weight: 800; margin: 0 0 6px; }
+  .cta-desc { font-size: 13.5px; opacity: 0.9; margin: 0; max-width: 480px; line-height: 1.6; }
+  .btn-white {
+    background: #fff;
+    color: #3a9bb0;
+    font-size: 15px;
+    font-weight: 800;
+    padding: 14px 26px;
+    border-radius: 999px;
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+    margin-right: 96px;
+  }
+
+  /* FAQ 하단바 스타일은 static/loca_common.css 공통 사용 */
+
+  /* ── 반응형: 다른 페이지와 동일한 브레이크포인트 체계 ── */
+  @media (max-width: 1180px) {
+    .hero { grid-template-columns: minmax(0, 1fr); padding: 36px 32px; }
+    .hero-title { font-size: 32px; }
+    .stat-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 1040px) {
+    .shell { padding: 24px 20px 32px; }
+    .row-2col { grid-template-columns: minmax(0, 1fr); }
+    .panel-title, .compare-title { min-height: 0; }
+    .insight-body { grid-template-columns: minmax(0, 1fr); }
+    .compare-row { grid-template-columns: minmax(0, 1fr); }
+    .compare-mid .mid-arrow { transform: rotate(90deg); }
+    .tag-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .cta-banner { flex-direction: column; align-items: flex-start; padding: 22px 24px; }
+    .cta-desc { max-width: none; }
+    .btn-white { margin-right: 0; }
+    .cta-circle-mascot { display: none; }
+  }
+  @media (max-width: 720px) {
+    .hero { padding: 28px 20px; }
+    .hero-title { font-size: 27px; }
+    .cta-left { flex-direction: column; align-items: flex-start; }
+    .cta-mascot { margin: 0 0 -8px; }
+    .stat-row { grid-template-columns: minmax(0, 1fr); }
+    .tag-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .pipeline-row { justify-content: flex-start; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="shell">
+
+    <!-- 공통 상단바 -->
+    <!-- 공통 상단바: data.brand(name, href), data.nav([{label, href, active}]), data.header_action(선택) 사용 -->
+<div class="header">
+  <a class="brand" href="preview.html">LOCA</a>
+  <nav class="nav">
+    
+    <a href="preview-page2.html" class="">현재 부담 진단</a>
+    
+    <a href="preview-page4.html" class="">대안 탐색</a>
+    
+    <a href="preview-page6.html" class="">상세 비교</a>
+    
+  </nav>
+  
+</div>
+
+
+    <!-- Hero -->
+    <div class="hero">
+      <div>
+        <span class="hero-badge">주거비 + 교통비 + 통근시간의 가치</span>
+        <h1 class="hero-title">
+          월세가 싸면,<br>
+          정말 <span class="highlight">덜 부담스러울까요?</span>
+        </h1>
+        <p class="hero-desc">LOCA는 월세뿐 아니라 교통비와 출퇴근에 쓰이는 시간까지 함께 계산해 내 직장에 맞는 실제 주거 부담을 비교합니다.</p>
+        <a class="btn-primary" href="preview-page2.html">내 부담 분석하기 →</a>
+      </div>
+      <div class="hero-art">
+        <img src="static/images/hero-illustration.png" alt="">
+      </div>
+    </div>
+
+    <!-- Insight + Comparison -->
+    <div class="row-2col">
+
+      <!-- Insight panel -->
+      <div class="panel">
+        <h2 class="panel-title">월세가 저렴해도<br>전체 부담은 더 커질 수 있습니다</h2>
+        <div class="insight-body">
+        <div class="insight-left">
+          <p class="panel-desc">30,171개의 거주동-근무동 조합을 분석한 결과</p>
+          <div class="big-stat">3,897<span class="unit">개</span></div>
+          <p class="footnote">월세는 저렴하지만 통근까지 포함하면 오히려 부담이 커지는 조합</p>
+        </div>
+          <div class="matrix-wrap">
+            <div class="matrix-axis-y">주거비</div>
+            <div class="matrix-ylabel">
+              <span>높음</span>
+              <span class="axis-arrow"></span>
+              <span>낮음</span>
+            </div>
+            <div class="matrix-grid">
+              <div class="quad">
+                <div class="icon-bullet">▤</div>
+                실질비용효율
+              </div>
+              <div class="quad warn">
+                <div class="icon-bullet">!</div>
+                월세 착시
+              </div>
+              <div class="quad">
+                <div class="icon-bullet">★</div>
+                숨은 효율
+              </div>
+              <div class="quad">
+                <div class="icon-bullet">▲</div>
+                종합 고부담
+              </div>
+            </div>
+            <div class="matrix-xlabel">
+              <span>낮음</span>
+              <span class="axis-arrow"></span>
+              <span>높음</span>
+            </div>
+            <div class="matrix-xaxis-title">통근부담(시간+교통비)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Comparison panel -->
+      <div class="panel">
+        <h2 class="compare-title">서울의 주거지는 같은 방식으로 싸고 비싸지 않았습니다</h2>
+        <div class="compare-row">
+          <div class="compare-card a">
+            <span class="compare-badge a">A. 주거절감·장거리통근형</span>
+            <div class="compare-label">평균 표면주거비</div>
+            <div class="compare-value a">약 56.1만 원</div>
+            <div class="compare-label">평균 편도 통근</div>
+            <div class="compare-value a">약 35.0분</div>
+          </div>
+          <div class="compare-mid">
+            <div class="mid-label">주거비</div>
+            <div class="mid-value">약 30만 원 차이</div>
+            <div class="mid-arrow">↔</div>
+            <div class="mid-label">편도 통근</div>
+            <div class="mid-value">약 14분 차이</div>
+          </div>
+          <div class="compare-card b">
+            <span class="compare-badge b">B. 고주거비·직주근접형</span>
+            <div class="compare-label">평균 표면주거비</div>
+            <div class="compare-value b">약 86.3만 원</div>
+            <div class="compare-label">평균 편도 통근</div>
+            <div class="compare-value b">약 21.4분</div>
+          </div>
+        </div>
+
+        <p class="compare-footnote">LOCA는 서울 행정동을 주거비·통근시간·교통구조를 바탕으로 6가지 유형으로 분석했습니다.</p>
+
+        <div class="tag-grid">
+          
+          <div class="tag red">고비용<br>통근부담형</div>
+          
+          <div class="tag gray">광역분산<br>통근형</div>
+          
+          <div class="tag teal">주거절감·<br>장거리통근형</div>
+          
+          <div class="tag gray">근접통근·<br>균형형</div>
+          
+          <div class="tag yellow">저주거비·<br>지역연계형</div>
+          
+          <div class="tag blue">고주거비·<br>직주근접형</div>
+          
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Methodology -->
+    <div class="method-panel">
+      <h2 class="method-title">LOCA는 이렇게 분석했습니다</h2>
+      <div class="stat-row">
+        
+        <div class="stat-card">
+          <div class="stat-icon"></div>
+          <div>
+            <div class="stat-value">577,745<span class="unit">건</span></div>
+            <div class="stat-label">유효 전월세 거래</div>
+          </div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-icon"></div>
+          <div>
+            <div class="stat-value">164,860<span class="unit">개</span></div>
+            <div class="stat-label">서울 출근 OD 흐름</div>
+          </div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-icon"></div>
+          <div>
+            <div class="stat-value">30,171<span class="unit">개</span></div>
+            <div class="stat-label">거주지-근무지 분석 조합</div>
+          </div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-icon"></div>
+          <div>
+            <div class="stat-value">420<span class="unit">개</span></div>
+            <div class="stat-label">행정동 통합부담 산출 완료</div>
+          </div>
+        </div>
+        
+      </div>
+      <div class="pipeline-row">
+        
+        <span class="pipeline-step">서울 출근 OD</span>
+        <span class="pipeline-arrow">→</span>
+        
+        <span class="pipeline-step">TMAP 대중교통 경로</span>
+        <span class="pipeline-arrow">→</span>
+        
+        <span class="pipeline-step">통근부담 산출</span>
+        <span class="pipeline-arrow">→</span>
+        
+        <span class="pipeline-step">통근권 분석</span>
+        <span class="pipeline-arrow">→</span>
+        
+        <span class="pipeline-step">행정동 유형화</span>
+        <span class="pipeline-arrow">→</span>
+        
+        <span class="pipeline-step">근무지 기준 개인화 비교</span>
+        
+        
+      </div>
+    </div>
+
+    <!-- CTA banner -->
+    <div class="cta-banner">
+      <div class="cta-left">
+        <img class="cta-mascot" src="static/images/cta-mascot.png" alt="">
+        <div>
+          <p class="cta-title">그럼 나는 지금 얼마나 부담하고 있을까요?</p>
+          <p class="cta-desc">현재 집과 실제 직장을 입력하면 내가 매달 부담하는 주거비와 통근 부담을 함께 계산해드려요.</p>
+        </div>
+      </div>
+      <a class="btn-white" href="preview-page2.html">현재 부담 진단하기 →</a>
+      <img class="cta-circle-mascot" src="static/images/circle-mascot.png" alt="">
+    </div>
+
+    <!-- 공통 하단바 -->
+    <!-- 공통 하단바: data.faq.title, data.faq.questions, data.faq.avatar(선택) 사용 -->
+<div class="faq-panel ">
+  <h2 class="faq-title">LOCA에게 물어보세요</h2>
+  <div class="faq-row">
+    
+    <div class="faq-chip">
+      <span class="mark">?</span>
+      월세 착시가 뭐예요?
+      <span class="arrow">›</span>
+    </div>
+    
+    <div class="faq-chip">
+      <span class="mark">?</span>
+      통근시간을 왜 비용으로 계산하나요?
+      <span class="arrow">›</span>
+    </div>
+    
+    <div class="faq-chip">
+      <span class="mark">?</span>
+      LOCA는 어떤 데이터를 분석했나요?
+      <span class="arrow">›</span>
+    </div>
+    
+  </div>
+  
+</div>
+
+
+  </div>
+</div>
+</body>
+</html>

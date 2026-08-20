@@ -1,0 +1,15 @@
+<!-- 공통 상단바: data.brand(name, href), data.nav([{label, href, active}]), data.header_action(선택) 사용 -->
+<div class="header">
+  <a class="brand" href="{{ data.brand.href }}">{{ data.brand.name }}</a>
+  <nav class="nav">
+    {% for item in data.nav %}
+    <a href="{{ item.href }}" class="{% if item.active %}active{% endif %}">{{ item.label }}</a>
+    {% endfor %}
+  </nav>
+  {% if data.header_action %}
+  <a class="header-action" href="{{ data.header_action.href }}"{% if data.header_action.print %} onclick="window.print(); return false;"{% endif %}>
+    <img src="{{ url_for('static', filename=data.header_action.icon) }}" alt="">
+    {{ data.header_action.label }}
+  </a>
+  {% endif %}
+</div>
