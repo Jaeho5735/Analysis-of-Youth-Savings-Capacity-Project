@@ -1,10 +1,10 @@
-# src/db/ — CSV를 MySQL로 옮기는 단계
+# src/db/ — CSV를 MySQL로 옮기고, 다시 꺼내는 단계
 
 ## 왜 필요했나
 
 `reference → preprocessing → indicators → validation → analysis` 까지 돌면 분석은 끝난다. 결과는 CSV로 남고, 그대로도 읽을 수 있다.
 
-이 폴더는 그다음이다. **분석 결과를 조회 가능한 형태로 옮긴다.** 여기서 파이프라인의 성격이 바뀐다.
+이 폴더는 그다음이다. **분석 결과를 조회 가능한 형태로 옮기고, 서비스가 쓸 수 있게 꺼내준다.** 여기서 파이프라인의 성격이 바뀐다.
 
 - 지금까지: 우리가 가끔 돌리는 **구축 단계**
 - 여기부터: 사용자가 항상 두드리는 **운영 단계**
@@ -43,15 +43,33 @@ OD에는 폐지된 용신동이 남아 있다. 신설동·용두동으로 1:N �
 
 실행할 때마다 `TRUNCATE` 후 재적재한다. 중간에 실패해도 상태가 꼬이지 않고, 몇 번을 돌려도 결과가 같다.
 
+### ⑥ 컬럼명을 추측하면 조용히 틀린다
+
+조회 계층을 만들면서 세 번 겪었다. 부분문자열로 컬럼을 찾으면 **먼저 나오는 쪽이 이긴다.**
+
+| 찾으려던 것 | 실제로 잡힌 것 | 결과 |
+|---|---|---|
+| `행정동코드_최종` (420개) | `행정동코드` (보정 전 215개) | 집계 대상이 절반 |
+| `교통비_산출포함률` (실수) | `교통비_커버리지부족` (불리언) | 전부 NaN |
+| `교통비_산출포함률` | `월교통비_실지출_원` | 컬럼 못 찾고 건너뜀 |
+
+두 번째가 특히 나빴다. 불리언을 숫자로 읽어 전부 NaN이 되고 결과가 **"교통비 커버리지 미달 0개"**로 나왔다. 실제로는 9개다. 에러로 죽었으면 차라리 나았을 텐데 **"안전하다"는 거짓 신호**를 냈다.
+
+그래서 `query_dong.py`는 컬럼을 자동 감지하지 않는다. 파일 상단 `COLS`에 실제 이름을 적어두고, `--inspect`로 확인한 뒤에 쓴다.
+
 ## 하는 일
 
 ```
-inspect_csv.py     (1회) data/ 아래 CSV 구조 조사
+inspect_csv.py      (1회)    data/ 아래 CSV 구조 조사
        ↓
-load_to_db.py      (갱신 시) CSV -> MySQL 적재
+load_to_db.py       (갱신 시) CSV -> MySQL 적재
        ↓
 check_quarantine.py (적재 후) 격리된 행의 실제 손실 진단
+       ↓
+query_dong.py       (운영)    MySQL -> 서비스 응답
 ```
+
+앞의 세 개는 구축 단계, 마지막 하나는 운영 단계다.
 
 ### inspect_csv.py
 
@@ -98,6 +116,8 @@ CSV 8종을 읽어 MySQL 테이블 9개에 넣는다. FK 의존 순서대로 돌
 
 `dim_business_district`는 CSV에 없다. `업무지구_정의.csv` 40행을 지구명으로 group by 해서 9행을 만들고, `district_id`가 AUTO_INCREMENT라 DB에서 다시 읽어 bridge에 매핑한다.
 
+서비스용 테이블 두 개(`dim_fallback_candidate`, `dim_dong_reliability`)는 이 스크립트가 넣지 않는다. CSV가 아니라 SQL 파일에서 직접 적재한다. `sql/README.md` 참고.
+
 ### check_quarantine.py
 
 격리된 행이 **실제로 얼마나 손실인지** 진단한다.
@@ -108,6 +128,77 @@ CSV 8종을 읽어 MySQL 테이블 9개에 넣는다. FK 의존 순서대로 돌
 
 **입력** `data/quarantine/*_orphan.csv` + 대응 원본 CSV
 **출력** 콘솔 진단 (판정 포함)
+
+---
+
+## query_dong.py — 조회 계층
+
+### 왜 필요했나
+
+웹이 SQL을 직접 쓰게 두면 두 가지가 무너진다.
+
+첫째, **상태 판단이 화면마다 흩어진다.** "이 동은 주거비가 없다", "이 동은 배정을 못 믿는다" 같은 판단을 페이지마다 다시 짜면 기준이 어긋난다.
+
+둘째, **계산 규칙이 복제된다.** 총부담과 시간비용은 컬럼에 없고 조회 시점에 계산한다. 이 산식이 여러 곳에 흩어지면 시간가치를 바꿀 때 한 군데를 빠뜨린다.
+
+그래서 조회를 함수 하나로 모았다. 웹은 이 함수만 호출하면 되고 SQL을 몰라도 된다.
+
+### 하는 일
+
+행정동 하나를 조회해 `docs/LOCA_응답계약.md`의 status 4종 JSON을 돌려준다.
+
+```python
+from src.db.query_dong import get_dong, get_dong_by_name
+
+get_dong("11710566")        # 코드로
+get_dong_by_name("마장동")   # 이름으로. 여러 개면 ambiguous
+```
+
+| status | 조건 | 응답에 담기는 것 |
+|---|---|---|
+| `ok` | 정상 | 부담 지표 + 유형 + 거래 수 |
+| `low_confidence` | 신뢰도 낮음 | 위 + `notice` + `reasons` |
+| `unreliable` | 배정 신뢰 불가 | 위 + `warning` |
+| `no_data` | 주거비 미산출 | 사유 + 인근 후보 목록 |
+| `ambiguous` | 이름이 여러 행정동에 걸침 | 후보 행정동 목록 |
+
+`unreliable`과 `low_confidence`는 **값이 있다.** 숨기지 않고 라벨만 붙인다. 값이 없는 것은 `no_data`뿐이다.
+
+### 계산 규칙
+
+`fact_dong_burden`에 총부담·시간비용 컬럼이 없다. 시간가치 가정을 컬럼에 박지 않기로 한 결과다(`sql/README.md` 설계원칙 ①).
+
+```
+시간비용 = monthly_commute_hour × TIME_VALUE_PER_HOUR(10,320원)
+총부담   = surface_housing_cost + 교통비 + 시간비용
+```
+
+교통비는 `FARE_MODE` 상수로 고른다. `"pass"`(정기권 캡) 또는 `"actual"`(실지출). 응답에는 선택된 값과 양쪽 원본을 모두 담아, 화면에서 "실지출 기준으로는 얼마"를 병기할 수 있게 했다.
+
+`fact_dong_type`은 `(dong_code8, k_value)` 복합키라 `K_VALUE = 6`으로 조인한다. 이 조건을 빼면 `dong_type`이 NULL로 나온다.
+
+MySQL `DECIMAL`은 파이썬에서 `Decimal` 객체로 온다. Flask의 `jsonify`가 직렬화하지 못하므로 응답 직전에 int/float으로 바꾼다.
+
+### 접속 정보
+
+`.env`에서 읽는다. **비밀번호를 코드에 적지 않는다.** 키 이름이 프로젝트마다 다를 수 있어 후보를 순서대로 훑는다(`MYSQL_PASSWORD` / `DB_PASSWORD` / `DB_PW` 등).
+
+```
+python src/db/query_dong.py --env       # 접속 설정 확인 (비밀번호 값은 안 찍음)
+python src/db/query_dong.py --inspect   # 테이블 스키마 확인
+python src/db/query_dong.py 마장동        # 조회 시험
+```
+
+`--env`가 `password (설정됨)`을 찍으면 준비된 것이다.
+
+### 알려진 문제
+
+**`oneway_commute_min`은 근무지와 무관하다.** 거주동 거주자의 모든 목적지를 가중평균한 값이라, "이 동에서 강남까지 몇 분"이 아니다. 시간비용과 총부담이 이 값에 의존하므로 근무지 기준 비교에는 쓸 수 없다. `fact_commute_route`(거주동 × 근무동)로 교체하는 방안을 논의 중이다.
+
+**입력** MySQL `multicam` 스키마, `.env`
+**출력** status 4종 JSON
+
+---
 
 ## 적재 실적
 
@@ -122,6 +213,8 @@ CSV 8종을 읽어 MySQL 테이블 9개에 넣는다. FK 의존 순서대로 돌
 | `fact_commute_od` | 164,032 | 828 |
 | `fact_commute_route` | 30,636 | 203 |
 | `fact_rent_transaction` | 577,745 | 16 |
+| `dim_fallback_candidate` | 16 | — |
+| `dim_dong_reliability` | 427 | — |
 
 QC 7종 전항목 통과. 순위 재현 불일치 10개는 표면주거비 INT 반올림 차이로 diff가 전부 ±1이었다.
 
@@ -134,5 +227,6 @@ QC 7종 전항목 통과. 순위 재현 불일치 10개는 표면주거비 INT �
 | `inspect_csv.py` | CSV 구조 조사 | 컬럼이 바뀔 때만 |
 | `load_to_db.py` | CSV → MySQL 적재 | 데이터 갱신 시 |
 | `check_quarantine.py` | 격리 행 손실 진단 | 적재 직후 |
+| `query_dong.py` | MySQL → 서비스 응답 | 요청마다 |
 
-스키마와 조회 쿼리는 `sql/`에 있다. 이 폴더는 그 사이를 잇는 다리다.
+스키마와 조회 쿼리는 `sql/`에 있다. 이 폴더는 그 사이를 잇는 다리이고, `query_dong.py`부터는 서비스 쪽으로 건너간다. 웹에서 어떻게 쓰이는지는 `web/README.md` 참고.
