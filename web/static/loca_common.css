@@ -1,3 +1,9 @@
+/* 본문 폰트. 시스템 기본(맑은 고딕)으로 떨어지면 획이 각져 보여서
+   시안의 둥근 인상과 어긋난다. Pretendard 를 CDN 으로 받아 전 페이지에 적용한다.
+   variable dynamic subset 이라 한글 웹폰트치고 가볍고, 숫자 가독성도 좋다.
+   네트워크가 막히면 아래 font-family 의 뒤쪽 시스템 폰트로 자동 대체된다. */
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
+
 /* LOCA 공통 스타일 — 상단바(header)와 하단바(FAQ bar), 기본 토큰
    templates/partials/header.html, templates/partials/faq_bar.html 과 함께 사용합니다. */
 
@@ -23,10 +29,17 @@
 body {
   margin: 0;
   background: var(--bg-page);
-  font-family: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  font-family: "Pretendard Variable", Pretendard, -apple-system,
+               "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
   color: var(--text-dark);
   word-break: keep-all;
+  /* 숫자를 같은 폭으로 그려 금액이 바뀔 때 칸이 흔들리지 않게 한다 */
+  font-feature-settings: "tnum";
+  -webkit-font-smoothing: antialiased;
 }
+
+/* 폼 요소는 폰트를 물려받지 않아 따로 지정해야 한다 */
+input, select, textarea, button { font-family: inherit; }
 
 a { color: var(--teal-700); text-decoration: none; }
 a:hover { color: var(--teal-500); }
@@ -220,4 +233,77 @@ a:hover { color: var(--teal-500); }
   .chat-mascot { display: none; }
   .chat-chips { flex-direction: column; gap: 10px; }
   .chat-chip { white-space: normal; }
+}
+
+/* ── 입체감 공통 ─────────────────────────────
+   시안의 그림이 부드러운 3D 렌더라, 화면 요소가 평평하면 서로 겉돈다.
+   눌리는 것(버튼)은 위에서 아래로 밝기 차 + 그림자,
+   담는 것(카드·칩)은 옅은 그림자로만 띄운다. */
+
+.shell { box-shadow: 0 14px 44px rgba(20, 65, 62, 0.07); }
+
+/* 상단바 탭 */
+.nav a { transition: color 0.15s ease; }
+.nav a.active { border-bottom-width: 3px; }
+
+/* 헤더 버튼 */
+.header-action {
+  box-shadow: 0 2px 6px rgba(20, 65, 62, 0.06);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.header-action:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(20, 65, 62, 0.12);
+}
+
+/* 질문 칩 */
+.faq-chip,
+.chat-chip {
+  box-shadow: 0 2px 6px rgba(20, 65, 62, 0.05);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.faq-chip:hover,
+.chat-chip:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px rgba(20, 65, 62, 0.1);
+  border-color: var(--teal-300);
+}
+
+.faq-panel { box-shadow: 0 6px 20px rgba(20, 65, 62, 0.05); }
+.chat-input { box-shadow: 0 4px 14px rgba(20, 65, 62, 0.06); }
+
+/* 각 페이지의 주요 버튼(2·4·5페이지) */
+.btn-primary,
+.search-submit,
+.btn-cta,
+.v-cta,
+.cta-button {
+  box-shadow: 0 6px 16px rgba(20, 90, 84, 0.24),
+              inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.btn-primary:hover,
+.search-submit:hover,
+.btn-cta:hover,
+.v-cta:hover,
+.cta-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(20, 90, 84, 0.3),
+              inset 0 1px 0 rgba(255, 255, 255, 0.26);
+}
+.btn-primary:active,
+.search-submit:active,
+.btn-cta:active,
+.v-cta:active,
+.cta-button:active {
+  transform: translateY(0);
+  box-shadow: 0 3px 10px rgba(20, 90, 84, 0.22);
+}
+
+/* 입력칸도 살짝 파이게 해서 버튼과 층을 구분한다 */
+.field-control input,
+.field-control select,
+.search-box,
+.search-field {
+  box-shadow: inset 0 1px 3px rgba(20, 65, 62, 0.05);
 }

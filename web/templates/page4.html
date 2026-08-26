@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{ data.brand.name }} · 대안 탐색</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='loca_common.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='loca_combo.css') }}">
 <style>
   /* 공통 토큰·상단바·하단바는 static/loca_common.css 사용 */
 
@@ -236,6 +237,190 @@
     margin: 0;
   }
 
+  .basis-note {
+    position: relative;
+    z-index: 1;
+    margin: 0 0 18px;
+    padding: 11px 16px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.7);
+    font-size: 12.5px;
+    color: var(--text-mid);
+    text-align: center;
+  }
+
+  /* 후보 검증 결과. 지표 넉 장을 가로로 두고 아래에 결론 한 단락. */
+  .cand {
+    position: relative;
+    z-index: 1;
+    margin: 0 0 34px;
+    padding: 22px 24px 24px;
+    border-radius: 20px;
+    background: var(--card-white);
+    box-shadow: 0 8px 26px rgba(20, 65, 62, 0.09);
+    text-align: center;
+  }
+  .cand-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+  .cand-metric {
+    border-radius: 14px;
+    padding: 14px 10px;
+    background: #f7fbfa;
+    box-shadow: inset 0 1px 3px rgba(20, 65, 62, 0.05);
+  }
+  .cm-label {
+    margin: 0 0 6px;
+    font-size: 12px;
+    color: var(--text-light);
+  }
+  .cm-value {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--teal-700);
+  }
+  .cand.tone-warn .cm-value { color: #a8542c; }
+  .cand.tone-good .cm-value { color: #2f7a44; }
+  .cand-summary {
+    margin: 0 0 18px;
+    padding: 14px 18px;
+    border-radius: 12px;
+    background: #f4faf9;
+    font-size: 13.5px;
+    line-height: 1.75;
+    color: var(--text-mid);
+    text-align: left;
+    word-break: keep-all;
+  }
+  .cand.tone-warn .cand-summary { background: #fdf4f0; color: #7d4526; }
+  .cand.tone-good .cand-summary { background: #f2faf4; color: #2f6b3c; }
+  .cand-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(180deg, #56b8b1 0%, #2f8e87 100%);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    padding: 14px 30px;
+    border-radius: 999px;
+  }
+  .cand-cta:hover { color: #fff; }
+  .cand-error {
+    position: relative;
+    z-index: 1;
+    margin: 0 0 28px;
+    padding: 16px 20px;
+    border-radius: 14px;
+    background: #fdf4f0;
+    color: #a8542c;
+    font-size: 13.5px;
+    text-align: center;
+  }
+
+  /* 추천 후보 카드. 메인 화면처럼 테두리 없이 그림자로만 층을 만든다. */
+  .picks { position: relative; z-index: 1; }
+  .picks-title {
+    margin: 0 0 4px;
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+    text-align: center;
+  }
+  .picks-note {
+    margin: 0 0 22px;
+    font-size: 13px;
+    color: var(--text-light);
+    text-align: center;
+  }
+  .picks-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+  .pick-card {
+    position: relative;
+    display: block;
+    background: var(--card-white);
+    border-radius: 18px;
+    padding: 22px 22px 18px;
+    color: inherit;
+    overflow: hidden;
+    box-shadow: 0 6px 20px rgba(20, 65, 62, 0.08);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .pick-card:hover {
+    color: inherit;
+    transform: translateY(-4px);
+    box-shadow: 0 14px 30px rgba(20, 65, 62, 0.14);
+  }
+  .pick-card::before {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; top: 0;
+    height: 5px;
+    background: linear-gradient(90deg, #6fc9b8, #35998a);
+  }
+  .pick-rank {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: linear-gradient(180deg, #56b8b1, #2f8e87);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 800;
+    margin-bottom: 10px;
+    box-shadow: 0 3px 8px rgba(20, 90, 84, 0.28);
+  }
+  .pick-name {
+    margin: 0 0 3px;
+    font-size: 19px;
+    font-weight: 800;
+    letter-spacing: -0.4px;
+  }
+  .pick-type {
+    margin: 0 0 16px;
+    font-size: 12px;
+    color: var(--text-light);
+  }
+  .pick-rows { margin: 0; }
+  .pick-rows > div {
+    display: flex;
+    align-items: baseline;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(20, 65, 62, 0.06);
+  }
+  .pick-rows > div:last-child { border-bottom: none; }
+  .pick-rows dt {
+    font-size: 12.5px;
+    color: var(--text-mid);
+  }
+  .pick-rows dd {
+    margin: 0 0 0 auto;
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--teal-700);
+  }
+  .pick-gap {
+    margin: 14px 0 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 12.5px;
+    text-align: center;
+    color: var(--text-mid);
+  }
+  .pick-gap strong { font-size: 15px; }
+  .pick-gap.down { background: #e9f7f0; color: #1f7a54; }
+  .pick-gap.up { background: #fdf0ec; color: #a8542c; }
+
   @media (max-width: 1180px) {
     .hero {
       grid-template-columns: minmax(0, 0.75fr) minmax(0, 1fr);
@@ -250,6 +435,8 @@
     .search-submit { width: 100%; }
     .baseline-card { margin: 0; }
     .compare-deco { display: none; }
+    .picks-grid { grid-template-columns: minmax(0, 1fr); }
+    .cand-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 </style>
 </head>
@@ -270,12 +457,21 @@
         <h1 class="hero-title">{{ data.hero.title_plain_1 }}<span class="accent">{{ data.hero.title_accent }}</span>{{ data.hero.title_plain_2 }}</h1>
         <p class="hero-desc">{{ data.hero.description_line1 }}<br>{{ data.hero.description_line2 }}</p>
 
-        <form class="search-form" method="get" action="{{ data.hero.search.submit_href }}">
-          <div class="search-box">
+        <form class="search-form" method="get" action="/explore">
+          {# GET 폼은 action 에 붙은 쿼리스트링을 버린다. 거주지·근무지 입력을
+             5페이지까지 들고 가려면 hidden 으로 다시 실어야 한다. #}
+          {% for k, v in (data.carry or {}).items() %}{% if v %}
+          <input type="hidden" name="{{ k }}" value="{{ v }}">
+          {% endif %}{% endfor %}
+          <div class="search-box combo" data-combo>
             <span class="pin">◉</span>
-            <input type="text" name="area" value="{{ data.hero.search.value }}" placeholder="{{ data.hero.search.placeholder }}">
+            <input type="text" name="area" data-place="area"
+                   value="{{ data.hero.search.value }}"
+                   placeholder="지하철역·건물명·주소·행정동 모두 가능">
             <button class="clear" type="reset" aria-label="지우기">✕</button>
+            <ul class="combo-list" role="listbox" hidden></ul>
           </div>
+          <p class="combo-hint">예) 신도림역, 삼성동 아이파크, 테헤란로 152, 상계2동</p>
           <button class="search-submit" type="submit">{{ data.hero.search.submit_label }}</button>
         </form>
       </div>
@@ -322,11 +518,60 @@
         <p class="compare-desc">{{ data.compare.description }}</p>
       </div>
 
+      {% if data.compare.basis_note %}
+      <p class="basis-note">{{ data.compare.basis_note }}</p>
+      {% endif %}
+
+      {% if data.compare.candidate %}
+      <div class="cand tone-{{ data.compare.candidate.tone }}">
+        <div class="cand-metrics">
+          {% for m in data.compare.candidate.metrics %}
+          <div class="cand-metric">
+            <p class="cm-label">{{ m.label }}</p>
+            <p class="cm-value">{{ m.value }}</p>
+          </div>
+          {% endfor %}
+        </div>
+        <p class="cand-summary">{{ data.compare.candidate.summary }}</p>
+        <a class="cand-cta" href="{{ data.compare.candidate.detail_href }}">
+          대안 상세 보기 <span>→</span>
+        </a>
+      </div>
+      {% elif data.compare.candidate_error %}
+      <p class="cand-error">{{ data.compare.candidate_error }}</p>
+      {% endif %}
+
+      {% if data.compare.picks %}
+      <div class="picks">
+        <p class="picks-title">{{ data.compare.picks_title }}</p>
+        <p class="picks-note">{{ data.compare.picks_note }}</p>
+        <div class="picks-grid">
+          {% for c in data.compare.picks %}
+          <a class="pick-card" href="{{ c.href }}">
+            <span class="pick-rank">{{ c.rank }}</span>
+            <p class="pick-name">{{ c.name }}</p>
+            <p class="pick-type">{{ c.gu }}{% if c.type %} · {{ c.type }}{% endif %}</p>
+            <dl class="pick-rows">
+              <div><dt>대표 주거비</dt><dd>{{ c.housing }}만 원</dd></div>
+              <div><dt>편도 통근</dt><dd>{{ c.commute }}분</dd></div>
+              <div><dt>월 교통비</dt><dd>{{ c.fare }}만 원</dd></div>
+              <div><dt>환승</dt><dd>{{ c.transfer }}</dd></div>
+            </dl>
+            <p class="pick-gap {% if c.gap_down %}down{% else %}up{% endif %}">
+              현재 대비 <strong>{{ c.gap }}만 원</strong>
+              {% if c.gap_down %}감소{% else %}증가{% endif %}
+            </p>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% else %}
       <div class="compare-empty">
         <img src="{{ url_for('static', filename='images/p4-chart.png') }}" alt="">
         <p class="empty-title">{{ data.compare.empty.title }}</p>
         <p class="empty-desc">{{ data.compare.empty.description }}</p>
       </div>
+      {% endif %}
     </div>
 
     <!-- 공통 하단바 -->
@@ -334,5 +579,6 @@
 
   </div>
 </div>
+<script src="{{ url_for('static', filename='loca_combo.js') }}"></script>
 </body>
 </html>

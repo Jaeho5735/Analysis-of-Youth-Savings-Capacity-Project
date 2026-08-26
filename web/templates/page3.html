@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{ data.brand.name }} · 현재 부담 진단 결과</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='loca_common.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='loca_combo.css') }}">
 <style>
   /* 공통 토큰·상단바·하단바는 static/loca_common.css 사용 */
 
@@ -25,10 +26,11 @@
 
   .summary-body {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
-    gap: 18px;
-    align-items: center;
+    grid-template-columns: minmax(0, 1fr) minmax(210px, 260px);
+    gap: 20px;
+    align-items: start;
   }
+  .summary-text { align-self: center; }
   .summary-text p {
     margin: 0;
     font-size: 19px;
@@ -44,11 +46,28 @@
     max-width: 280px;
     justify-self: center;
   }
+  /* 도넛. 평평한 원이면 옆의 3D 그림과 겉돈다.
+     바깥에 그림자를 깔아 띄우고, 안쪽 구멍에는 옅은 안그림자를 넣어
+     고리가 실제로 두께를 가진 것처럼 보이게 한다. */
   .donut {
     position: relative;
     width: 100%;
     aspect-ratio: 1;
     border-radius: 50%;
+    filter: drop-shadow(0 10px 20px rgba(20, 65, 62, 0.16));
+  }
+  /* 고리 위에 얇은 하이라이트를 얹어 위쪽이 밝아 보이게 한다 */
+  .donut::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: linear-gradient(160deg,
+                rgba(255, 255, 255, 0.34) 0%,
+                rgba(255, 255, 255, 0.06) 38%,
+                rgba(0, 0, 0, 0.05) 72%,
+                rgba(0, 0, 0, 0.1) 100%);
+    pointer-events: none;
   }
   .donut::after {
     content: "";
@@ -56,6 +75,8 @@
     inset: 26%;
     background: var(--card-white);
     border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(20, 65, 62, 0.04),
+                inset 0 3px 10px rgba(20, 65, 62, 0.12);
   }
   .donut-center {
     position: absolute;
@@ -93,6 +114,7 @@
     position: absolute;
     top: -8px;
     right: -4px;
+    box-shadow: 0 4px 12px rgba(209, 121, 74, 0.22);
     background: #fdece4;
     color: #d1794a;
     font-size: 12px;
@@ -131,11 +153,13 @@
   .fact-label { font-size: 12.5px; color: var(--text-light); margin-bottom: 2px; }
   .fact-value { font-size: 17px; font-weight: 800; color: var(--teal-700); }
 
+  /* 경로 띠. 실제 노선색을 그대로 써서 사용자가 아는 색으로 읽게 한다.
+     역 이름은 보유하지 않아 노선·수단 이름을 마디에 둔다. */
   .station-line {
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: minmax(0, 1fr);
-    padding-top: 26px;
+    padding: 30px 4px 6px;
   }
   .station {
     position: relative;
@@ -145,39 +169,258 @@
     min-width: 0;
   }
   .station .dot {
-    width: 13px;
-    height: 13px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
     background: var(--card-white);
-    border: 3px solid currentColor;
+    border: 3.5px solid currentColor;
     position: relative;
     z-index: 1;
   }
+  /* 환승 지점은 속을 채워 한눈에 구분되게 한다 */
   .station.transfer .dot {
-    width: 19px;
-    height: 19px;
+    width: 20px;
+    height: 20px;
     border-width: 5px;
+    background: currentColor;
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.9);
   }
   .station .rail {
     position: absolute;
-    top: 6px;
+    top: 5px;
     left: 50%;
     right: -50%;
-    height: 3px;
+    height: 4px;
+    border-radius: 2px;
     background: currentColor;
   }
   .station .name {
-    margin-top: 10px;
+    margin-top: 12px;
     font-size: 12.5px;
-    font-weight: 700;
-    color: var(--text-mid);
+    font-weight: 800;
+    color: currentColor;
     text-align: center;
+    line-height: 1.3;
+    word-break: keep-all;
   }
-  .station.transfer .name { color: var(--text-dark); }
   .station .sub {
-    font-size: 11.5px;
+    margin-top: 2px;
+    font-size: 11px;
+    font-weight: 600;
     color: var(--text-light);
     text-align: center;
+  }
+  .station.transfer .sub::after {
+    content: " · 환승";
+    color: var(--text-mid);
+    font-weight: 700;
+  }
+  /* 값 설명은 접어둔다. 펼치기 전에는 한 줄만 보이게 해서
+     화면이 숫자 설명으로 덮이지 않게 한다. */
+  .value-notes {
+    margin: 16px 0 0;
+    border-radius: 14px;
+    background: var(--card-white);
+    box-shadow: 0 3px 12px rgba(20, 65, 62, 0.06);
+    overflow: hidden;
+  }
+  .value-notes > summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 11px 16px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--teal-700, #2a6b66);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .value-notes > summary::-webkit-details-marker { display: none; }
+  .value-notes > summary::before {
+    content: "?";
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--teal-100, #dcefec);
+    font-size: 10.5px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .value-notes > summary::after {
+    content: "▾";
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--text-light);
+  }
+  .value-notes[open] > summary::after { content: "▴"; }
+  .value-notes ul {
+    margin: 0;
+    padding: 0 16px 14px;
+    list-style: none;
+    border-top: 1px solid rgba(20, 65, 62, 0.07);
+  }
+  .value-notes li {
+    padding: 9px 0 0;
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: var(--text-mid);
+    word-break: keep-all;
+  }
+
+  /* 결론 배너. 테두리를 두르면 경고창처럼 보이고 메인 화면의 부드러운
+     인상과 어긋난다. 선을 없애고 옅은 그라데이션과 그림자로만 띄운다.
+     왼쪽에 색 띠를 세워 어떤 톤인지 알리되 상자 전체를 물들이지 않는다. */
+  .verdict {
+    position: relative;
+    margin-top: 22px;
+    padding: 22px 26px 22px 30px;
+    border-radius: 20px;
+    display: block;
+    overflow: hidden;
+    background: linear-gradient(135deg, #f4fbfa 0%, #eef7f6 100%);
+    box-shadow: 0 8px 24px rgba(20, 65, 62, 0.08);
+  }
+  .verdict::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 6px;
+    background: var(--teal-500, #4aa8a2);
+  }
+  .verdict.tone-warn {
+    background: linear-gradient(135deg, #fef8f5 0%, #fdf1ec 100%);
+    box-shadow: 0 8px 24px rgba(216, 90, 48, 0.12);
+  }
+  .verdict.tone-warn::before { background: #e08b5f; }
+  .verdict.tone-good {
+    background: linear-gradient(135deg, #f4fcf6 0%, #edf8f0 100%);
+    box-shadow: 0 8px 24px rgba(61, 139, 64, 0.1);
+  }
+  .verdict.tone-good::before { background: #5aa863; }
+  .v-tag {
+    margin: 0 0 6px;
+    font-size: 17.5px;
+    font-weight: 800;
+    letter-spacing: -0.4px;
+    color: var(--teal-700, #2a6b66);
+  }
+  .tone-warn .v-tag { color: #a8542c; }
+  .tone-good .v-tag { color: #2f7a44; }
+  .v-text {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.7;
+    color: var(--text-mid);
+    word-break: keep-all;
+  }
+  .tone-warn .v-text { color: #7d4526; }
+
+  .v-cta {
+    flex-shrink: 0;
+    background: linear-gradient(180deg, #56b8b1 0%, #2f8e87 100%);
+    color: #fff;
+    font-size: 13.5px;
+    font-weight: 700;
+    padding: 13px 22px;
+    border-radius: 10px;
+    white-space: nowrap;
+  }
+  .verdict.tone-warn .v-cta {
+    background: linear-gradient(180deg, #e08b5f 0%, #c86a3d 100%);
+  }
+  .verdict.tone-good .v-cta {
+    background: linear-gradient(180deg, #6bb975 0%, #43904e 100%);
+  }
+  .v-cta:hover { color: #fff; opacity: 0.92; }
+
+  /* 지역 진단 카드. 색을 꽉 채운 상자 네 개가 나란히 있으면 시선이
+     분산되고 만들다 만 느낌이 난다. 배경은 흰색에 가깝게 낮추고
+     위쪽에만 색 띠를 얹어 항목을 구분한다. 구분은 색 띠가, 층은 그림자가. */
+  .diagnosis-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    padding-top: 4px;
+  }
+  .diagnosis-card {
+    position: relative;
+    border-radius: 16px;
+    padding: 18px 18px 16px;
+    min-width: 0;
+    overflow: hidden;
+    background: var(--card-white);
+    box-shadow: 0 4px 14px rgba(20, 65, 62, 0.07);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .diagnosis-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 24px rgba(20, 65, 62, 0.12);
+  }
+  .diagnosis-card::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 5px;
+  }
+  .d-tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 999px;
+    margin-bottom: 9px;
+  }
+  .d-title {
+    margin: 0 0 6px;
+    font-size: 15px;
+    font-weight: 800;
+    line-height: 1.35;
+    letter-spacing: -0.3px;
+    color: var(--text-dark);
+    word-break: keep-all;
+  }
+  .d-text {
+    margin: 0;
+    font-size: 11.5px;
+    line-height: 1.65;
+    color: var(--text-light);
+    word-break: keep-all;
+  }
+
+  .tone-red::before   { background: linear-gradient(90deg, #e88a86, #d9635d); }
+  .tone-red   .d-tag  { color: #a32d2d; background: #fceceb; }
+  .tone-teal::before  { background: linear-gradient(90deg, #6fc9b8, #35998a); }
+  .tone-teal  .d-tag  { color: #0f6e56; background: #e1f5ee; }
+  .tone-amber::before { background: linear-gradient(90deg, #f0c579, #d99b34); }
+  .tone-amber .d-tag  { color: #854f0b; background: #faeeda; }
+  .tone-blue::before  { background: linear-gradient(90deg, #83b4e8, #4a86cc); }
+  .tone-blue  .d-tag  { color: #185fa5; background: #e6f1fb; }
+
+  .route-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin: 18px 0 0;
+  }
+  .route-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-mid);
+    font-weight: 600;
+  }
+  .route-legend i {
+    width: 14px;
+    height: 4px;
+    border-radius: 2px;
+    background: currentColor;
   }
 
   /* ── 혼잡 구간 ── */
@@ -279,6 +522,20 @@
   }
   .peak-exposure .small { font-size: 18px; }
 
+  .station-note {
+    font-size: 12.5px;
+    color: var(--text-light);
+    margin: 14px 0 0;
+  }
+  .congestion-empty {
+    font-size: 14px;
+    color: var(--text-light);
+    margin: 0;
+    padding: 18px 0 4px;
+  }
+  /* 혼잡 자료가 없으면 1단으로 접어 오른쪽에 빈 상자가 남지 않게 한다 */
+  .congestion-card:not(:has(.peak-panel)) { grid-template-columns: minmax(0, 1fr); }
+
   /* ── CTA 배너 ── */
   .cta-banner {
     margin-top: 22px;
@@ -314,6 +571,9 @@
 
   @media (max-width: 1180px) {
     .top-row { grid-template-columns: minmax(0, 1fr); }
+    .diagnosis-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .verdict { grid-template-columns: minmax(0, 1fr); }
+    .v-cta { justify-self: start; }
     .congestion-card { grid-template-columns: minmax(0, 1fr); }
     .peak-panel { border-left: none; border-top: 1px solid rgba(20,65,62,0.1); padding: 20px 0 0; }
   }
@@ -355,6 +615,8 @@
             <p>
               {% for line in data.summary.lines2 %}{{ line.text }}<br>{% endfor %}
             </p>
+
+
           </div>
 
           <div class="donut-wrap">
@@ -392,6 +654,7 @@
           {% endfor %}
         </div>
 
+        {% if data.route.stations %}
         <div class="station-line">
           {% for st in data.route.stations %}
           <div class="station {% if st.transfer %}transfer{% endif %}" style="color: {{ st.color }}">
@@ -402,8 +665,30 @@
           </div>
           {% endfor %}
         </div>
+        {% endif %}
+        {% if data.route.stations %}
+        <p class="route-legend">
+          {% for st in data.route.stations %}{% if st.sub %}
+          <span style="color: {{ st.color }}"><i></i>{{ st.name }}</span>
+          {% endif %}{% endfor %}
+        </p>
+        {% endif %}
+        {% if data.route.stations_note %}
+        <p class="station-note">{{ data.route.stations_note }}</p>
+        {% endif %}
+
+
       </div>
     </div>
+
+    {% if data.summary.verdict %}
+    <div class="verdict tone-{{ data.summary.verdict.tone }}">
+      <div class="v-body">
+        <p class="v-tag">{{ data.summary.verdict.tag }}</p>
+        <p class="v-text">{{ data.summary.verdict.text }}</p>
+      </div>
+    </div>
+    {% endif %}
 
     <!-- 혼잡 구간 -->
     <div class="card congestion-card">
@@ -412,6 +697,30 @@
           <h2>{{ data.congestion.title }}</h2>
           <span class="note">{{ data.congestion.note }}</span>
         </div>
+
+        {% if not data.congestion.segments %}
+          {% if data.congestion.diagnosis %}
+          <div class="diagnosis-grid">
+            {% for d in data.congestion.diagnosis %}
+            <div class="diagnosis-card tone-{{ d.tone }}">
+              <span class="d-tag">{{ d.tag }}</span>
+              <p class="d-title">{{ d.title }}</p>
+              <p class="d-text">{{ d.text }}</p>
+            </div>
+            {% endfor %}
+          </div>
+          {% if data.route.value_notes %}
+          <details class="value-notes">
+            <summary>이 금액들은 어떻게 나온 건가요?</summary>
+            <ul>
+              {% for n in data.route.value_notes %}<li>{{ n }}</li>{% endfor %}
+            </ul>
+          </details>
+          {% endif %}
+          {% elif data.congestion.empty_text %}
+          <p class="congestion-empty">{{ data.congestion.empty_text }}</p>
+          {% endif %}
+        {% endif %}
 
         <div class="segment-row">
           {% for seg in data.congestion.segments %}
@@ -431,6 +740,7 @@
         </div>
       </div>
 
+      {% if data.congestion.segments %}
       <div class="peak-panel">
         <div class="peak-label">{{ data.congestion.peak.label }}</div>
         <div class="peak-value-row">
@@ -442,6 +752,7 @@
           <div class="peak-exposure"><span class="small">{{ data.congestion.peak.exposure_prefix }}</span> {{ data.congestion.peak.exposure_value }}<span class="small">{{ data.congestion.peak.exposure_unit }}</span></div>
         </div>
       </div>
+      {% endif %}
     </div>
 
     <!-- CTA 배너 -->
@@ -482,5 +793,6 @@
     });
   });
 </script>
+<script src="{{ url_for('static', filename='loca_combo.js') }}"></script>
 </body>
 </html>

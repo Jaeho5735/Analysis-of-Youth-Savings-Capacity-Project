@@ -9,17 +9,27 @@
   .shell { padding: 32px 40px 40px; }
 
   /* Hero */
+  /* 히어로. 오른쪽 그림이 카드 끝까지 붙어야 화면이 꽉 차 보인다.
+     사방 padding 을 주면 그림이 안쪽에 갇혀 여백만 넓어지므로,
+     왼쪽 글 영역에만 padding 을 주고 그림은 카드 모서리까지 내보낸다. */
   .hero {
-    background: linear-gradient(135deg, var(--teal-100), #f4fbfa);
+    position: relative;
+    background: linear-gradient(100deg, var(--teal-100) 0%, #eaf6f4 46%, #e9f4f6 100%);
     border-radius: 22px;
-    padding: 48px 48px;
     display: grid;
-    grid-template-columns: 1.1fr 1fr;
-    gap: 24px;
-    align-items: center;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    align-items: stretch;
+    overflow: hidden;
+    min-height: 360px;
+  }
+  .hero > :first-child {
+    padding: 52px 8px 52px 52px;
+    align-self: center;
+    min-width: 0;
   }
   .hero-badge {
     display: inline-block;
+    box-shadow: 0 3px 10px rgba(20, 65, 62, 0.1);
     background: var(--card-white);
     color: var(--teal-700);
     font-size: 13px;
@@ -29,10 +39,13 @@
     margin-bottom: 20px;
   }
   .hero-title {
-    font-size: 40px;
+    font-size: clamp(32px, 3.4vw, 44px);
     font-weight: 800;
     line-height: 1.3;
+    letter-spacing: -1px;
     margin: 0 0 18px;
+    /* 옅은 그림자로 글자를 배경에서 살짝 띄운다 */
+    text-shadow: 0 2px 5px rgba(20, 65, 62, 0.1);
   }
   .hero-title .highlight { color: var(--teal-500); }
   .hero-desc {
@@ -42,29 +55,51 @@
     max-width: 480px;
     margin: 0 0 28px;
   }
+  /* 버튼. 평평한 단색이면 그림의 입체감과 어긋나 눌린 것처럼 보인다.
+     위에서 아래로 밝기 차를 주고 그림자를 깔아 떠 있게 만든다. */
   .btn-primary {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    background: var(--teal-700);
+    gap: 9px;
+    background: linear-gradient(180deg, #2a8f86 0%, #16665f 100%);
     color: #fff;
-    font-size: 15px;
+    font-size: 15.5px;
     font-weight: 700;
-    padding: 14px 26px;
+    letter-spacing: -0.2px;
+    padding: 15px 30px;
     border-radius: 999px;
     border: none;
     cursor: pointer;
+    box-shadow: 0 6px 16px rgba(20, 90, 84, 0.28),
+                inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
   }
+  .btn-primary:hover {
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 22px rgba(20, 90, 84, 0.32),
+                inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  }
+  .btn-primary:active {
+    transform: translateY(0);
+    box-shadow: 0 3px 10px rgba(20, 90, 84, 0.26);
+  }
+  /* 그림은 자르지 않는다. 원본이 하늘·건물까지 그려진 완성 이미지라
+     cover 로 잘라내면 배경이 중간에서 끊겨 보인다.
+     대신 카드 배경을 그림 바탕색과 맞춰 경계가 드러나지 않게 한다. */
   .hero-art {
     position: relative;
-    border-radius: 18px;
-    overflow: hidden;
+    min-width: 0;
     display: flex;
     align-items: center;
+    justify-content: flex-end;
   }
   .hero-art img {
     width: 100%;
     height: auto;
+    max-height: 100%;
+    object-fit: contain;
+    object-position: center right;
     display: block;
   }
 
@@ -394,7 +429,9 @@
 
   /* ── 반응형: 다른 페이지와 동일한 브레이크포인트 체계 ── */
   @media (max-width: 1180px) {
-    .hero { grid-template-columns: minmax(0, 1fr); padding: 36px 32px; }
+    .hero { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+    .hero > :first-child { padding: 36px 32px 0; }
+    .hero-art img { max-height: 260px; margin: 0 auto; }
     .hero-title { font-size: 32px; }
     .stat-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
@@ -412,7 +449,8 @@
     .cta-circle-mascot { display: none; }
   }
   @media (max-width: 720px) {
-    .hero { padding: 28px 20px; }
+    .hero > :first-child { padding: 28px 20px 0; }
+    .hero-art img { max-height: 200px; }
     .hero-title { font-size: 27px; }
     .cta-left { flex-direction: column; align-items: flex-start; }
     .cta-mascot { margin: 0 0 -8px; }

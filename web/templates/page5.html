@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{ data.brand.name }} · 대안 비교</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='loca_common.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='loca_combo.css') }}">
 <style>
   /* 공통 토큰·상단바·하단 채팅바는 static/loca_common.css 사용 */
 
@@ -46,9 +47,11 @@
   .search-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    gap: 14px;
+    gap: 16px;
     align-items: stretch;
+    justify-items: stretch;
   }
+  .search-row > .combo { min-height: 60px; }
   .search-field {
     display: flex;
     align-items: center;
@@ -79,19 +82,23 @@
     padding: 0 2px;
     flex-shrink: 0;
   }
+  /* 검색 버튼. 입력칸 옆에서 눌러야 할 곳이 분명히 보여야 한다.
+     세로는 입력칸과 같은 높이로 늘리고 가로 여백을 넉넉히 준다. */
   .search-submit {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 10px;
-    background: var(--teal-700);
+    background: linear-gradient(180deg, #2a8f86 0%, #16665f 100%);
     color: #fff;
     font-family: inherit;
-    font-size: 15.5px;
+    font-size: 16.5px;
     font-weight: 800;
-    padding: 0 28px;
+    letter-spacing: -0.3px;
+    padding: 18px 40px;
+    min-height: 60px;
     border: none;
-    border-radius: 12px;
+    border-radius: 14px;
     cursor: pointer;
     white-space: nowrap;
   }
@@ -450,7 +457,7 @@
     .hero-art { justify-content: center; }
     .verdict-row, .recommend-row { grid-template-columns: minmax(0, 1fr); }
     .search-row { grid-template-columns: minmax(0, 1fr); }
-    .search-submit { padding: 15px 28px; }
+    .search-submit { padding: 16px 28px; min-height: 54px; }
   }
 </style>
 </head>
@@ -469,10 +476,17 @@
       <div class="search-card">
         <p class="search-label">{{ data.hero.search.label }}</p>
         <form class="search-row" method="get" action="{{ data.hero.search.submit_href }}">
-          <div class="search-field">
-            <input type="text" name="dong" value="{{ data.hero.search.value }}" placeholder="{{ data.hero.search.placeholder }}">
+        {% for k, v in (data.carry or {}).items() %}{% if v %}
+        <input type="hidden" name="{{ k }}" value="{{ v }}">
+        {% endif %}{% endfor %}
+          <div class="search-field combo" data-combo>
+            <input type="text" name="dong" data-place="area"
+                   value="{{ data.hero.search.value }}"
+                   placeholder="지하철역·건물명·주소·행정동 모두 가능">
             <button type="reset" class="search-clear" aria-label="지우기">✕</button>
+            <ul class="combo-list" role="listbox" hidden></ul>
           </div>
+          <p class="combo-hint">예) 신도림역, 삼성동 아이파크, 테헤란로 152, 상계2동</p>
           <button type="submit" class="search-submit">{{ data.hero.search.submit_label }} <span>→</span></button>
         </form>
       </div>
@@ -613,5 +627,6 @@
 
   </div>
 </div>
+<script src="{{ url_for('static', filename='loca_combo.js') }}"></script>
 </body>
 </html>

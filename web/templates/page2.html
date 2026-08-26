@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{ data.brand.name }} · 현재 부담 진단</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='loca_common.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='loca_combo.css') }}">
 <style>
   /* 공통 토큰·상단바·하단바는 static/loca_common.css 사용 */
 
@@ -98,6 +99,43 @@
     font-size: 12px;
     pointer-events: none;
   }
+  /* 숫자 입력: 브라우저 스피너를 없애 폭이 흔들리지 않게 한다 */
+  .field-control input[type="number"] {
+    -moz-appearance: textfield;
+  }
+  .field-control input[type="number"]::-webkit-outer-spin-button,
+  .field-control input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  /* 단위 표기가 붙는 칸은 오른쪽 여백을 넉넉히 준다 */
+  .field-control.has-unit input { padding-right: 54px; }
+  .field-control .field-affix.unit {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-mid);
+  }
+  .field-error {
+    grid-column: 2;
+    font-size: 12.5px;
+    color: var(--red-500, #e2564f);
+    margin: -4px 0 0;
+  }
+  .field-control input.invalid { border-color: #e2564f; }
+  @media (max-width: 1040px) {
+    .field-error { grid-column: 1; }
+  }
+
+  .field-hint {
+    grid-column: 2;
+    font-size: 12px;
+    color: var(--text-light);
+    margin-top: -6px;
+  }
+  @media (max-width: 1040px) {
+    .field-hint { grid-column: 1; }
+  }
+
   .btn-primary {
     width: 100%;
     margin-top: 26px;
@@ -250,12 +288,111 @@
 
         <form method="get" action="{{ data.form.submit_href }}">
           <div class="field-list">
+            {#
+              필드 종류는 JSON 의 type 이 아니라 id 로 판별한다.
+              type 을 그대로 따르면 거주지·근무지가 select 로 굳어져 3개만 고를 수
+              있고, 금액 칸에 "1,000만 원" 같은 문자열이 들어가 숫자 입력이 안 된다.
+              id 로 판별하면 JSON 을 고치지 않아도 화면만 바꿀 수 있다.
+              판별 순서 주의 - work_days 가 workplace 보다 먼저 걸러져야 한다.
+            #}
             {% for field in data.form.fields %}
+            {% set fid = (field.id | string) | lower %}
+            {% set is_days = 'day' in fid or '일수' in fid or '출근일' in fid %}
+            {% set is_age = not is_days and ('age' in fid or '나이' in fid or '연령' in fid) %}
+            {% set is_time = not is_days and not is_age and ('time' in fid or '시간' in fid or '출발' in fid) %}
+            {% set is_money = not is_days and not is_time and not is_age and
+                              ('deposit' in fid or 'rent' in fid or 'money' in fid
+                               or '보증' in fid or '월세' in fid or '임대' in fid) %}
+            {% set is_place = not is_days and not is_time and not is_money and not is_age and
+                              ('resid' in fid or 'home' in fid or 'house' in fid
+                               or 'origin' in fid or 'work' in fid or 'office' in fid
+                               or 'company' in fid or 'dest' in fid
+                               or '거주' in fid or '근무' in fid or '직장' in fid) %}
+            {# 금액 값에서 콤마와 단위 글자를 떼어 순수 숫자만 남긴다 #}
+            {# 이 필드가 표준 키 중 무엇에 해당하는지 정한다.
+               다시 들어왔을 때 직전 입력을 채워 넣기 위한 것이다. #}
+            {% set carry = data.carry or {} %}
+            {% set ckey = 'work_days' if is_days
+                     else ('age' if is_age
+                     else ('depart_time' if is_time
+                     else ('deposit' if ('deposit' in fid or '보증' in fid)
+                     else ('rent' if ('rent' in fid or '월세' in fid or '임대' in fid)
+                     else ('residence' if ('resid' in fid or 'home' in fid or 'house' in fid
+                                           or 'origin' in fid or '거주' in fid)
+                     else ('workplace' if is_place else '')))))) %}
+            {% set carried = carry.get(ckey) if ckey else None %}
+
+            {# 거주지·근무지는 사람마다 달라서 기본값을 두면 안 된다.
+               "신사샤르망S 오피스텔"이 남아 있으면 입력한 적 없는 값이
+               자기 입력처럼 보이고, 그대로 눌러 시연 결과가 나온다. #}
+            {% set place_value = carried or '' %}
+            {% set money_value = carried if carried else
+                                 ((field.value | string) | replace(',', '') | replace('만', '')
+                                  | replace('원', '') | replace(' ', '') | trim) %}
+            {% set days_value = carried if carried else
+                                ((field.value | string) | replace('일', '') | replace(' ', '') | trim) %}
+
             <div class="field-row">
               <label class="field-label" for="{{ field.id }}">
                 <img src="{{ url_for('static', filename='images/p2-icon-' ~ field.icon ~ '.png') }}" alt="">
                 {{ field.label }}
               </label>
+
+              {% if is_place %}
+              {# 자유 입력이 기본이고 자동완성은 보조다. resolve_place 가 역명·도로명·
+                 지번을 모두 처리하므로 목록에 없어도 입력이 통해야 한다.
+                 JSON 의 시연용 선택지(신사샤르망S 오피스텔 등)는 넣지 않는다.
+                 입력한 적 없는 값이 추천으로 뜨면 그게 정답처럼 보인다. #}
+              <div class="field-control combo" data-combo>
+                <input id="{{ field.id }}" name="{{ field.id }}" type="text"
+                       autocomplete="off" role="combobox" aria-expanded="false"
+                       aria-autocomplete="list" data-place="{{ ckey }}"
+                       placeholder="{{ '예) 역삼역, 테헤란로 152, 상계2동' if ckey == 'residence'
+                                      else '예) 시청역, 여의도, 가산디지털단지역' }}"
+                       value="{{ place_value }}">
+                <ul class="combo-list" role="listbox" hidden></ul>
+              </div>
+
+              {% elif is_money %}
+              <div class="field-control has-unit">
+                <input id="{{ field.id }}" name="{{ field.id }}" type="number"
+                       inputmode="numeric" min="0" step="1" placeholder="0"
+                       value="{{ money_value }}">
+                <span class="field-affix unit">만 원</span>
+              </div>
+
+              {% elif is_time %}
+              {# 5분 단위 선택. ':' 를 직접 치게 하면 "8시 30분" 같은 표기가 섞인다 #}
+              <div class="field-control">
+                <select id="{{ field.id }}" name="{{ field.id }}" data-time-select="1">
+                  {% for h in range(5, 12) %}{% for m in range(0, 60, 5) %}
+                  {% set hh = '%02d' % h %}{% set mm = '%02d' % m %}
+                  <option value="{{ hh }}:{{ mm }}">{{ hh }}:{{ mm }}</option>
+                  {% endfor %}{% endfor %}
+                </select>
+                <span class="field-affix">⌄</span>
+              </div>
+
+              {% elif is_age %}
+              {# 만 나이. 모두의카드 청년(만 19~39세) 대상 여부를 가른다. #}
+              <div class="field-control has-unit">
+                <input id="{{ field.id }}" name="{{ field.id }}" type="number"
+                       inputmode="numeric" min="0" max="120" step="1"
+                       data-age="1" placeholder="숫자만 입력"
+                       value="{{ carried or '' }}">
+                <span class="field-affix unit">세</span>
+              </div>
+
+              {% elif is_days %}
+              <div class="field-control has-unit">
+                <input id="{{ field.id }}" name="{{ field.id }}" type="number"
+                       inputmode="numeric" min="1" max="31" step="1" placeholder="21"
+                       value="{{ days_value }}">
+                <span class="field-affix unit">일</span>
+              </div>
+
+              {% else %}
+              {# 예상 못 한 필드는 기존 방식 그대로 둔다 #}
               <div class="field-control">
                 {% if field.type == 'select' %}
                 <select id="{{ field.id }}" name="{{ field.id }}">
@@ -264,13 +401,28 @@
                   {% endfor %}
                 </select>
                 <span class="field-affix">⌄</span>
-                {% elif field.type == 'time' %}
-                <input id="{{ field.id }}" name="{{ field.id }}" type="text" value="{{ field.value }}">
-                <span class="field-affix">◷</span>
                 {% else %}
                 <input id="{{ field.id }}" name="{{ field.id }}" type="text" value="{{ field.value }}">
                 {% endif %}
               </div>
+              {% endif %}
+
+              {% if is_place %}
+              <p class="field-hint">두 글자 이상 입력하면 행정동을 추천해드려요.</p>
+              {% endif %}
+
+              {% if is_money %}
+              <p class="field-hint" data-money-hint="{{ field.id }}"></p>
+              {% endif %}
+
+              {% if is_age %}
+              <p class="field-hint" data-age-hint="{{ field.id }}">만 19~39세는 모두의카드 청년 대상이에요.</p>
+              {% endif %}
+
+              {% if is_time %}
+              <p class="field-hint" data-time-hint="{{ field.id }}"
+                 data-raw="{{ carried or field.value }}"></p>
+              {% endif %}
             </div>
             {% endfor %}
           </div>
@@ -319,5 +471,104 @@
 
   </div>
 </div>
+<script>
+  /* 금액 자릿수 확인.
+     2000 과 20000 은 화면상 비슷해 보이는데 주거비가 10배 달라진다.
+     입력하는 즉시 "2,000만 원"으로 되읽어줘서 오타를 바로 알아채게 한다. */
+  document.querySelectorAll('[data-money-hint]').forEach(function (hint) {
+    var input = document.getElementById(hint.dataset.moneyHint);
+    if (!input) return;
+    function show() {
+      var n = parseInt(input.value, 10);
+      hint.textContent = isNaN(n) || n <= 0 ? '' : n.toLocaleString('ko-KR') + '만 원';
+    }
+    input.addEventListener('input', show);
+    show();
+  });
+
+  /* 만 나이 즉시 피드백.
+     결과 페이지까지 가서야 "청년이 아니다"를 알게 되면 되돌아와야 한다.
+     입력하는 자리에서 바로 어떤 기준이 적용되는지 알려준다. */
+  document.querySelectorAll('[data-age-hint]').forEach(function (hint) {
+    var input = document.getElementById(hint.dataset.ageHint);
+    if (!input) return;
+    var base = hint.textContent;
+    function show() {
+      var n = parseInt(input.value, 10);
+      if (isNaN(n) || input.value === '') { hint.textContent = base; hint.style.color = ''; return; }
+      if (n >= 19 && n <= 39) {
+        hint.textContent = '모두의카드 청년 대상이에요. 대중교통비 월 55,000원까지만 부담해요.';
+        hint.style.color = '#0f6e56';
+      } else {
+        hint.textContent = '청년 대상(만 19~39세)이 아니에요. 일반 기준 62,000원이 적용돼요.';
+        hint.style.color = '#a32d2d';
+      }
+    }
+    input.addEventListener('input', show);
+    show();
+  });
+
+  /* 제출 검증.
+     거주지·근무지가 비면 결과 페이지까지 가서야 실패를 알게 된다.
+     여기서 막고 빈 칸으로 커서를 옮긴다. */
+  (function () {
+    var form = document.querySelector('.field-list') && document.querySelector('.field-list').closest('form');
+    if (!form) return;
+    form.addEventListener('submit', function (e) {
+      var missing = null;
+      form.querySelectorAll('input[data-place]').forEach(function (el) {
+        if (!el.value.trim() && !missing) { missing = el; }
+      });
+      if (missing) {
+        e.preventDefault();
+        missing.classList.add('invalid');
+        var row = missing.closest('.field-row');
+        var msg = row && row.querySelector('.field-error');
+        if (!msg && row) {
+          msg = document.createElement('p');
+          msg.className = 'field-error';
+          row.appendChild(msg);
+        }
+        if (msg) { msg.textContent = '이 항목을 입력해주세요.'; }
+        missing.focus();
+      }
+    });
+  })();
+
+  /* 출발시간 초기값 맞추기.
+     JSON 값이 "08:00" 이면 그대로, "8시 30분" 이나 "830" 처럼 표기가 달라도
+     숫자만 뽑아 가장 가까운 5분 단위 항목을 고른다. 값이 없거나 범위를 벗어나면
+     08:00 으로 둔다. 사용자가 표기를 통일해서 입력할 필요가 없게 하는 것이 목적. */
+  document.querySelectorAll('select[data-time-select]').forEach(function (sel) {
+    var hint = document.querySelector('[data-time-hint="' + sel.id + '"]');
+    var raw = hint ? (hint.dataset.raw || '') : '';
+    var digits = raw.replace(/[^0-9]/g, '');
+    var h = 8, m = 0, parsed = false;
+
+    if (digits.length >= 3) {
+      h = parseInt(digits.slice(0, digits.length - 2), 10);
+      m = parseInt(digits.slice(-2), 10);
+      parsed = true;
+    } else if (digits.length > 0) {
+      h = parseInt(digits, 10);
+      m = 0;
+      parsed = true;
+    }
+
+    if (!parsed || isNaN(h) || isNaN(m)) { h = 8; m = 0; }
+    m = Math.round(m / 5) * 5;
+    if (m >= 60) { m = 0; h += 1; }
+    if (h < 5 || h > 11) { h = 8; m = 0; }
+
+    var want = ('0' + h).slice(-2) + ':' + ('0' + m).slice(-2);
+    var found = Array.prototype.some.call(sel.options, function (o) {
+      if (o.value === want) { o.selected = true; return true; }
+      return false;
+    });
+    if (!found) { sel.value = '08:00'; }
+    if (hint) { hint.textContent = '5분 단위로 선택할 수 있어요.'; }
+  });
+</script>
+<script src="{{ url_for('static', filename='loca_combo.js') }}"></script>
 </body>
 </html>
