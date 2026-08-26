@@ -35,19 +35,26 @@ INSERT INTO dim_income_scenario
 
 
 -- ---------------------------------------------------------------------
--- 생활비 가정 : ※ 미확정 항목 ※
--- 생활소비부담지수는 강건 z-score라 금액이 아니다.
--- 지수를 금액으로 환산하는 근거가 아직 없으므로 아래 값은 자리표시용이며,
--- 이 값을 쓰는 Q4 결과는 "가정 기반 시산"으로만 해석해야 한다.
+-- ---------------------------------------------------------------------
+-- 기준 생활비 : 주거비·교통비를 제외한 그 밖의 월 소비지출
+--
+-- 통계청 가계동향조사 1인 가구 월평균 소비지출 1,720,612원(2024년 4분기)에서
+-- 주거·수도·광열 19.5%와 교통 12.0%를 뺀 값이다.
+--   1,720,612 x (1 - 0.195 - 0.120) = 약 1,180,000원
+-- 통합부담이 주거비·교통비를 이미 포함하므로 빼지 않으면 이중계상이 된다.
+-- 교통 비중은 전체 가구 기준이라 근사값이며, 서비스에서는 사용자 입력으로 대체된다.
 -- ---------------------------------------------------------------------
 TRUNCATE TABLE dim_living_cost_assumption;
 INSERT INTO dim_living_cost_assumption
-  (assumption_code, label, base_amount, index_slope, source_note) VALUES
-  ('base', '자리표시용 가정(미확정)', 700000, 50000,
-   '근거 미확보. 지수는 z-score이므로 금액 환산 규칙을 팀에서 확정해야 함');
+  (assumption_code, label, monthly_amount, is_default, source_note) VALUES
+  ('kosis_single', '통계청 1인가구 평균 (주거·교통 제외)', 1180000, 1,
+   '가계동향조사 2024년 4분기 1,720,612원에서 주거수도광열 19.5%·교통 12.0% 차감'),
+  ('frugal',       '절약형 (평균의 80%)',                   944000, 0, '민감도 분석용'),
+  ('spender',      '여유형 (평균의 120%)',                 1416000, 0, '민감도 분석용');
 
 
 -- 확인
 SELECT 'dim_time_value' AS tbl, COUNT(*) AS cnt FROM dim_time_value
 UNION ALL SELECT 'dim_income_scenario', COUNT(*) FROM dim_income_scenario
 UNION ALL SELECT 'dim_living_cost_assumption', COUNT(*) FROM dim_living_cost_assumption;
+-- 기대: 1 / 5 / 3

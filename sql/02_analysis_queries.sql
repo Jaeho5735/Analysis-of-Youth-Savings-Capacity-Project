@@ -209,32 +209,71 @@ ORDER BY 공통_동수 DESC;
 
 
 -- =====================================================================
--- [Q4] 소득 시나리오별 저축여력 - 저축률 20% 달성 가능 행정동 수
---   소득·시간가치·생활비를 전부 파라미터 테이블에서 가져오므로
---   가정을 바꾸는 민감도 분석이 WHERE 절 수정만으로 끝난다.
--- 기법: CROSS JOIN (파라미터 격자) + 조건부 집계
+-- [Q4] 소득 시나리오별 저축 여력 - 어느 동에서 저축률 20%를 달성할 수 있는가
+--
+-- 생활비는 생활소비부담지수로 환산하지 않는다. 그 지수는 강건 z-score라
+-- 금액이 아니고 환산 근거를 만들 수 없었다. 대신 공표 통계 기반 단일 상수를 쓴다.
+--
+-- 기준 생활비는 주거비·교통비를 뺀 값이다. 통합부담이 그 둘을 이미 포함하므로
+-- 빼지 않으면 같은 지출을 두 번 세게 된다.
+--
+--   현금흐름 잔여액 = 세후소득 - 표면주거비 - 월교통비 - 기준생활비
+--   저축률          = 잔여액 / 세후소득
+--
+-- 시간비용은 실제로 나가는 돈이 아니므로 여기서 빼지 않는다.
+-- 기법: CROSS JOIN 으로 소득 x 생활비 파라미터 격자를 만든다
 -- =====================================================================
 SELECT
     i.label                                    AS 소득시나리오,
-    t.label                                    AS 시간가치기준,
+    lc.label                                   AS 생활비기준,
     COUNT(*)                                   AS 대상_행정동,
     SUM(CASE WHEN i.monthly_net_income
-                  - v.total_burden_pass
-                  - (lc.base_amount + lc.index_slope * v.consumption_index)
+                  - b.surface_housing_cost
+                  - b.monthly_transport_pass
+                  - lc.monthly_amount
                   >= i.monthly_net_income * 0.20
              THEN 1 ELSE 0 END)                AS 저축률20_달성동수,
+    ROUND(SUM(CASE WHEN i.monthly_net_income
+                  - b.surface_housing_cost
+                  - b.monthly_transport_pass
+                  - lc.monthly_amount
+                  >= i.monthly_net_income * 0.20
+             THEN 1 ELSE 0 END) / COUNT(*) * 100, 1) AS 달성률_pct,
     ROUND(AVG(i.monthly_net_income
-              - v.total_burden_pass
-              - (lc.base_amount + lc.index_slope * v.consumption_index))) AS 평균_잔여액
-FROM v_dong_burden v
-JOIN dim_time_value t ON t.time_value_code = v.time_value_code
+              - b.surface_housing_cost
+              - b.monthly_transport_pass
+              - lc.monthly_amount))            AS 평균_잔여액
+FROM fact_dong_burden b
 CROSS JOIN dim_income_scenario i
 CROSS JOIN dim_living_cost_assumption lc
-WHERE v.surface_housing_cost IS NOT NULL
-  AND v.consumption_index IS NOT NULL
-  AND lc.assumption_code = 'base'
-GROUP BY i.label, i.monthly_net_income, t.label
-ORDER BY i.monthly_net_income, t.label;
+WHERE b.surface_housing_cost IS NOT NULL
+  AND b.flag_small_sample = 0
+  AND lc.is_default = 1
+GROUP BY i.label, i.monthly_net_income, lc.label
+ORDER BY i.monthly_net_income;
+
+
+-- Q4b. 생활비 가정을 바꿨을 때의 민감도
+-- 하나의 상수에 결론이 좌우되지 않는지 확인한다
+SELECT
+    lc.label                                   AS 생활비기준,
+    FORMAT(lc.monthly_amount, 0)               AS 월생활비,
+    SUM(CASE WHEN i.income_code = 'S1' AND i.monthly_net_income
+                  - b.surface_housing_cost - b.monthly_transport_pass - lc.monthly_amount
+                  >= i.monthly_net_income * 0.20 THEN 1 ELSE 0 END) AS 세후220만_달성동수,
+    SUM(CASE WHEN i.income_code = 'S3' AND i.monthly_net_income
+                  - b.surface_housing_cost - b.monthly_transport_pass - lc.monthly_amount
+                  >= i.monthly_net_income * 0.20 THEN 1 ELSE 0 END) AS 세후280만_달성동수,
+    SUM(CASE WHEN i.income_code = 'S5' AND i.monthly_net_income
+                  - b.surface_housing_cost - b.monthly_transport_pass - lc.monthly_amount
+                  >= i.monthly_net_income * 0.20 THEN 1 ELSE 0 END) AS 세후350만_달성동수
+FROM fact_dong_burden b
+CROSS JOIN dim_income_scenario i
+CROSS JOIN dim_living_cost_assumption lc
+WHERE b.surface_housing_cost IS NOT NULL
+  AND b.flag_small_sample = 0
+GROUP BY lc.assumption_code, lc.label, lc.monthly_amount
+ORDER BY lc.monthly_amount;
 
 
 -- =====================================================================
@@ -262,29 +301,62 @@ ORDER BY 동수 DESC;
 
 
 -- =====================================================================
--- [Q6] 정책·금융상품 매칭 - 특정 행정동 거주 가정 시 적용 가능 목록
---   조건 컬럼은 "NULL = 제한 없음" 규칙이라 조인 한 벌로 끝난다.
---   ※ 금융상품 담당 팀원과 컬럼 확정 후 category 확장 필요
--- 기법: 조건 조인 + COALESCE 기본값
+-- =====================================================================
+-- [Q6] 부담요인별 정책 매칭 - 사용자 조건에 맞는 정책 찾기
+--
+-- 조건 컬럼은 "NULL = 제한 없음" 규칙이라 IS NULL OR 비교 한 벌로 끝난다.
+-- 0으로 채웠다면 "0원 이하만 가능"으로 읽혀 아무도 해당되지 않았을 것이다.
+--
+-- 아래 파라미터를 바꿔가며 확인한다. 서비스에서는 사용자 입력으로 대체된다.
+--   나이 29세 / 월 세후 280만원 / 월세 75만원
+-- 기법: 조건 조인 + CASE 단위 표기
 -- =====================================================================
 SELECT
-    r.dong_name,
-    p.category,
-    p.policy_name,
-    p.provider,
-    p.benefit_amount,
-    b.surface_housing_cost,
-    ROUND(b.surface_housing_cost - COALESCE(p.benefit_amount, 0)) AS 지원후_주거비
-FROM fact_dong_burden b
-JOIN dim_region r ON r.dong_code8 = b.dong_code8
-JOIN dim_policy p
-  ON (p.target_sigungu IS NULL OR p.target_sigungu = r.sigungu_name)
- AND (p.rent_max       IS NULL OR p.rent_max      >= b.surface_housing_cost)
- AND (p.age_min        IS NULL OR p.age_min       <= 29)      -- 사용자 나이 파라미터
- AND (p.age_max        IS NULL OR p.age_max       >= 29)
- AND (p.income_max     IS NULL OR p.income_max    >= 2800000) -- 사용자 소득 파라미터
-WHERE r.dong_name = '노량진제1동'
-ORDER BY p.category, COALESCE(p.benefit_amount, 0) DESC;
+    p.burden_tag                                   AS 태그,
+    p.burden_tag_name                              AS 부담요인,
+    p.policy_name                                  AS 정책명,
+    p.provider                                     AS 운영기관,
+    p.category                                     AS 분류,
+    CASE p.benefit_unit
+         WHEN 'month' THEN CONCAT('월 ', FORMAT(p.benefit_amount, 0), '원')
+         WHEN 'once'  THEN CONCAT(FORMAT(p.benefit_amount, 0), '원 (1회)')
+         WHEN 'limit' THEN CONCAT('한도 ', FORMAT(p.benefit_amount, 0), '원')
+         ELSE '금액 정보 없음' END                  AS 지원내용,
+    CONCAT(COALESCE(p.age_min, '-'), ' ~ ', COALESCE(p.age_max, '-')) AS 연령조건,
+    CASE WHEN p.income_max IS NULL THEN '제한 없음'
+         ELSE CONCAT('월 ', FORMAT(p.income_max, 0), '원 이하') END   AS 소득조건,
+    p.source_url                                   AS 공식페이지
+FROM dim_policy p
+WHERE (p.age_min    IS NULL OR p.age_min    <= 29)
+  AND (p.age_max    IS NULL OR p.age_max    >= 29)
+  AND (p.income_max IS NULL OR p.income_max >= 2800000)
+  AND (p.rent_max   IS NULL OR p.rent_max   >= 750000)
+ORDER BY p.burden_tag, p.policy_name;
+
+
+-- Q6b. 부담요인별 정책 보유 현황 - 서비스에서 안내할 수 있는 요인인지 확인
+SELECT burden_tag AS 태그, burden_tag_name AS 부담요인,
+       COUNT(*) AS 정책수,
+       GROUP_CONCAT(policy_name ORDER BY policy_name SEPARATOR ' / ') AS 정책목록
+FROM dim_policy
+GROUP BY burden_tag, burden_tag_name
+ORDER BY burden_tag;
+
+
+-- Q6c. 조건 때문에 걸러지는 정책 확인 - "왜 이 정책은 안 나오나"에 답하기 위한 진단
+SELECT p.policy_name AS 정책명,
+       CASE WHEN p.age_max IS NOT NULL AND p.age_max < 29 THEN CONCAT('연령 상한 ', p.age_max)
+            WHEN p.age_min IS NOT NULL AND p.age_min > 29 THEN CONCAT('연령 하한 ', p.age_min)
+            WHEN p.income_max IS NOT NULL AND p.income_max < 2800000
+                 THEN CONCAT('소득 상한 월 ', FORMAT(p.income_max, 0), '원')
+            WHEN p.rent_max IS NOT NULL AND p.rent_max < 750000
+                 THEN CONCAT('월세 상한 ', FORMAT(p.rent_max, 0), '원')
+            ELSE '-' END AS 제외사유
+FROM dim_policy p
+WHERE NOT ((p.age_min    IS NULL OR p.age_min    <= 29)
+       AND (p.age_max    IS NULL OR p.age_max    >= 29)
+       AND (p.income_max IS NULL OR p.income_max >= 2800000)
+       AND (p.rent_max   IS NULL OR p.rent_max   >= 750000));
 
 
 -- =====================================================================
@@ -293,7 +365,7 @@ ORDER BY p.category, COALESCE(p.benefit_amount, 0) DESC;
 -- 지금까지의 분석은 "월세착시가 있다"까지만 말한다. Q7은 그 교환비를
 -- 숫자로 만든다. 사용자가 실제로 묻는 것은 "얼마나 더 가야 하나"다.
 --
--- 근무지구별로 후보동을 주거비 순으로 놓고 회귀 기울기를 낸다.
+-- 근무지구별로 후보동을 놓고 회귀 기울기를 낸다.
 --   기울기 = Σ(x-x̄)(y-ȳ) / Σ(x-x̄)²   (x=주거비, y=편도통근분)
 --   전환점 = 기울기 × -100,000  ->  주거비 10만원 절감당 편도 증가분(분)
 --
@@ -334,7 +406,9 @@ ORDER BY 전환점_분per10만원 DESC;
 
 
 -- Q7b. 서울 전체 기준 전환점 (근무지 구분 없이)
--- 발표 한 줄용: "주거비 10만원을 아끼면 편도 N분이 늘어난다"
+-- ※ 발표 숫자로 쓰지 말 것. 각 동의 대표 통근시간을 쓰면 "싼 동네 사람은
+--   애초에 가까운 곳으로 출근한다"는 자기선택 편향이 섞여 전환점이 과소 추정된다.
+--   Q7(근무지 고정)과 대조해 분석3의 필요성을 보이는 용도로만 쓴다.
 WITH d AS (
     SELECT surface_housing_cost - AVG(surface_housing_cost) OVER () AS dx,
            oneway_commute_min   - AVG(oneway_commute_min)   OVER () AS dy
@@ -346,9 +420,5 @@ WITH d AS (
 SELECT COUNT(*)                                        AS 대상동수,
        ROUND(SUM(dx * dy) / SUM(dx * dx) * -100000, 1) AS 전환점_분per10만원,
        ROUND(SUM(dx * dy) / SUM(dx * dx) * -100000
-             * 2 * 21 / 60 * 10320)                    AS 시간비용_증가액_원,
-       -- 10만원 아끼고 시간비용이 얼마나 늘어나는지. 10만원보다 크면 손해다.
-       CASE WHEN ABS(SUM(dx * dy) / SUM(dx * dx) * -100000 * 2 * 21 / 60 * 10320) > 100000
-            THEN '평균적으로 손해 - 월세착시가 일반적'
-            ELSE '평균적으로는 이득 - 착시는 일부 지역 현상' END AS 해석
+             * 2 * 21 / 60 * 10320)                    AS 시간비용_증가액_원
 FROM d;

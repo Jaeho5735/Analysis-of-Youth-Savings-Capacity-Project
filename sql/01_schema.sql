@@ -60,14 +60,22 @@ CREATE TABLE dim_income_scenario (
     PRIMARY KEY (income_code)
 ) ENGINE=InnoDB;
 
+-- 기준 생활비. 주거비·교통비를 제외한 그 밖의 월 소비지출.
+--
+-- 원래는 생활소비부담지수를 금액으로 환산하려 했으나 그 지수는 강건 z-score라
+-- 금액이 아니고, 환산 근거를 만들 수 없었다. 지수는 지역 특성 설명에만 쓰고
+-- 생활비는 공표 통계 기반 단일 상수로 둔다.
+--
+-- ※ 통합부담에 주거비·교통비가 이미 들어 있으므로, 소비지출 총액을 그대로 쓰면
+--   이중계상이 된다. 주거·수도·광열과 교통 비중을 뺀 값을 넣는다.
 CREATE TABLE dim_living_cost_assumption (
-    assumption_code VARCHAR(20) NOT NULL,
-    label           VARCHAR(40) NOT NULL,
-    base_amount     INT         NOT NULL,
-    index_slope     INT         NOT NULL,
-    source_note     VARCHAR(200)    NULL,
+    assumption_code VARCHAR(20)  NOT NULL,
+    label           VARCHAR(60)  NOT NULL,
+    monthly_amount  INT          NOT NULL COMMENT '월 기준 생활비(원). 주거·교통 제외',
+    is_default      TINYINT(1)   NOT NULL DEFAULT 0,
+    source_note     VARCHAR(200)     NULL,
     PRIMARY KEY (assumption_code)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB COMMENT='기준 생활비 (주거·교통 제외)';
 
 -- 업무지구 (지구 40행은 bridge에서 GROUP BY로 집계해 만든다)
 CREATE TABLE dim_business_district (
@@ -217,20 +225,36 @@ CREATE TABLE fact_rent_transaction (
     CONSTRAINT fk_txn_region FOREIGN KEY (dong_code8) REFERENCES dim_region (dong_code8)
 ) ENGINE=InnoDB;
 
+-- 정책·금융상품 (팀원B 수집분 중 조건이 안정적인 것만 적재)
+--
+-- 금감원 금융상품(금리·한도 변동)과 마이홈 주거공고(접수기간 만료)는
+-- 여기 넣지 않는다. 저장하면 화면에 옛 금리와 끝난 공고가 뜬다. 실시간 조회로 남긴다.
+--
+-- 조건 컬럼은 "NULL = 제한 없음" 규칙. 0으로 채우면 "0원 이하만 가능"으로 읽혀
+-- 아무도 해당되지 않는 정책이 된다.
 CREATE TABLE dim_policy (
-    policy_id      INT          NOT NULL AUTO_INCREMENT,
-    policy_name    VARCHAR(100) NOT NULL,
-    provider       VARCHAR(50)      NULL,
-    category       ENUM('housing_subsidy','loan','deposit_product','info') NOT NULL,
-    age_min        TINYINT          NULL,
-    age_max        TINYINT          NULL,
-    income_max     INT              NULL,
-    rent_max       INT              NULL,
-    target_sigungu VARCHAR(20)      NULL,
-    benefit_amount INT              NULL,
-    source_url     VARCHAR(300)     NULL,
-    PRIMARY KEY (policy_id)
-) ENGINE=InnoDB;
+    policy_id        INT          NOT NULL AUTO_INCREMENT,
+    policy_name      VARCHAR(100) NOT NULL,
+    provider         VARCHAR(60)      NULL,
+    -- 서비스 3페이지가 "보증금 부담이 크게 나타났어요 -> 관련 지원정보"로 연결되는 구조라
+    -- 부담 요인 태그가 매칭의 1차 기준이 된다
+    burden_tag       TINYINT      NOT NULL COMMENT '1높은월세 2높은보증금 3높은교통비 4낮은현금흐름 5자산형성 6보증금반환위험',
+    burden_tag_name  VARCHAR(30)      NULL,
+    category         ENUM('housing_subsidy','loan','deposit_product',
+                          'transport','living_subsidy','info') NOT NULL,
+    age_min          TINYINT          NULL,
+    age_max          TINYINT          NULL,
+    income_max       INT              NULL COMMENT '월 세후 원. 연소득 기준 원자료는 12로 나눠 통일',
+    income_period_src ENUM('month','year') NOT NULL DEFAULT 'month' COMMENT '원자료 기준(추적용)',
+    rent_max         INT              NULL,
+    benefit_amount   BIGINT           NULL,
+    -- 같은 원 단위라도 월지원/1회/한도가 섞여 있다. 단위 없이 표시하면 오해를 부른다
+    benefit_unit     ENUM('month','once','limit') NULL,
+    source_url       VARCHAR(300)     NULL,
+    PRIMARY KEY (policy_id),
+    KEY idx_policy_burden (burden_tag),
+    KEY idx_policy_category (category)
+) ENGINE=InnoDB COMMENT='정책·금융상품 조건표';
 
 -- 뷰
 CREATE OR REPLACE VIEW v_dong_burden AS
