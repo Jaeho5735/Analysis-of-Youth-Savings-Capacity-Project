@@ -1,0 +1,13 @@
+﻿policy_name,provider,burden_tag,burden_tag_name,category,age_min,age_max,income_max,income_period_src,rent_max,benefit_amount,benefit_unit,source_url
+서울시 청년 월세 지원,서울특별시,1,높은 월세 부담,housing_subsidy,19.0,39.0,3846357.0,month,900000.0,200000.0,month,https://housing.seoul.go.kr/site/main/content/sh01_060513
+청년월세 지원사업,국토교통부,1,높은 월세 부담,housing_subsidy,19.0,34.0,1538543.0,month,,200000.0,month,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00004661
+청년 부동산 중개보수 및 이사비 지원,서울특별시,2,높은 보증금 부담,housing_subsidy,19.0,39.0,3847000.0,month,,400000.0,once,https://youth.seoul.go.kr/infoData/sprtInfo/view.do?key=2309130006&sprtInfoId=68910
+행복주택 공급,국토교통부·한국토지주택공사(LH),2,높은 보증금 부담,housing_subsidy,19.0,39.0,4576036.0,month,,,,https://www.lh.or.kr/menu.es?mid=a10401020100
+K-패스,국토교통부,3,높은 통근 교통비,transport,19.0,,,month,,,,https://korea-pass.kr/info/intro.do
+서울 청년수당 지원,서울특별시,4,낮은 현금흐름 잔여액,living_subsidy,19.0,34.0,3846357.0,month,,500000.0,month,https://youth.seoul.go.kr/infoData/sprtInfo/view.do?key=2309130006&sprtInfoId=70372
+햇살론유스,서민금융진흥원,4,낮은 현금흐름 잔여액,loan,19.0,34.0,2916667.0,year,,12000000.0,limit,https://www.kinfa.or.kr/financialProduct/hessalLoanYoos.do
+희망두배 청년통장,서울특별시,5,자산형성 여력,deposit_product,18.0,34.0,2550000.0,month,,150000.0,month,https://news.seoul.go.kr/welfare/archives/581505
+자산형성지원사업(청년내일저축계좌),보건복지부,5,자산형성 여력,deposit_product,15.0,39.0,1282119.0,month,,300000.0,month,https://www.bokjiro.go.kr/ssis-tbu/ssis-tem/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00000060
+청년미래적금,서민금융진흥원,5,자산형성 여력,deposit_product,19.0,34.0,4784026.0,year,,30000.0,month,https://www.kinfa.or.kr/financialProduct/youthFutureSavings.do
+전세보증금 반환보증 보증료 지원,국토교통부·서울특별시,6,보증금 반환 위험,housing_subsidy,19.0,39.0,4166667.0,year,,400000.0,once,https://housing.seoul.go.kr/site/main/content/sh01_061030
+전세보증금반환보증,주택도시보증공사(HUG),6,보증금 반환 위험,info,,,,month,,700000000.0,limit,https://www.khug.or.kr/hug/web/ig/dr/igdr000001.jsp
