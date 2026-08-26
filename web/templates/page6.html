@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{ data.brand.name }} · 상세 비교</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='loca_common.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='loca_combo.css') }}">
 <style>
   /* 공통 토큰·상단바·하단바는 static/loca_common.css 사용 */
   .faq-panel { --faq-cols: 4; }
@@ -530,5 +531,6 @@
     });
   });
 </script>
+<script src="{{ url_for('static', filename='loca_combo.js') }}"></script>
 </body>
 </html>

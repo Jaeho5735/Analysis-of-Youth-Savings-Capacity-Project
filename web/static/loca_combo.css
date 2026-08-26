@@ -1,0 +1,61 @@
+/* 거주지·근무지 자동완성 드롭다운 공용 스타일.
+   datalist 는 항목을 꾸밀 수 없어 직접 만든다. 서울에 신사동이 세 곳,
+   성내동도 여럿이라 자치구를 함께 보여줘야 사용자가 고를 수 있다.
+   2·4·5페이지가 같은 입력을 받으므로 한 곳에서 관리한다. */
+
+.combo { position: relative; }
+
+.combo-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--card-white, #fff);
+  border: 1px solid rgba(20, 65, 62, 0.14);
+  border-radius: 12px;
+  box-shadow: 0 10px 26px rgba(20, 65, 62, 0.12);
+  text-align: left;
+}
+.combo-list[hidden] { display: none; }
+
+.combo-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 14.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.combo-list li[aria-selected="true"],
+.combo-list li:hover { background: #eef8f6; }
+
+.combo-list .gu {
+  font-size: 12.5px;
+  color: var(--text-light, #8a9a97);
+  flex-shrink: 0;
+}
+.combo-list .dong {
+  font-weight: 700;
+  color: var(--text-dark, #14413e);
+}
+
+.combo-list .empty {
+  color: var(--text-light, #8a9a97);
+  cursor: default;
+  font-size: 13.5px;
+}
+.combo-list .empty:hover { background: transparent; }
+
+.combo-hint {
+  font-size: 12px;
+  color: var(--text-light, #8a9a97);
+  margin: 6px 0 0;
+}

@@ -22,6 +22,8 @@ FROM (
     UNION ALL SELECT 'fact_rent_transaction', COUNT(*), 577745 FROM fact_rent_transaction
     UNION ALL SELECT 'dim_time_value',        COUNT(*),      1 FROM dim_time_value
     UNION ALL SELECT 'dim_income_scenario',   COUNT(*),      5 FROM dim_income_scenario
+    UNION ALL SELECT 'dim_living_cost_assumption', COUNT(*),  3 FROM dim_living_cost_assumption
+    UNION ALL SELECT 'dim_policy',            COUNT(*),     12 FROM dim_policy
 ) x;
 
 
