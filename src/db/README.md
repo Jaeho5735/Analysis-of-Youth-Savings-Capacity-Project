@@ -62,6 +62,8 @@ OD에는 폐지된 용신동이 남아 있다. 신설동·용두동으로 1:N �
 ```
 inspect_csv.py      (1회)    data/ 아래 CSV 구조 조사
        ↓
+run_sql.py          (갱신 시) 스키마·QC SQL 파일 실행
+       ↓
 load_to_db.py       (갱신 시) CSV -> MySQL 적재
        ↓
 check_quarantine.py (적재 후) 격리된 행의 실제 손실 진단
@@ -69,7 +71,7 @@ check_quarantine.py (적재 후) 격리된 행의 실제 손실 진단
 query_dong.py       (운영)    MySQL -> 서비스 응답
 ```
 
-앞의 세 개는 구축 단계, 마지막 하나는 운영 단계다.
+앞의 네 개는 구축 단계, 마지막 하나는 운영 단계다.
 
 ### inspect_csv.py
 
@@ -85,7 +87,30 @@ query_dong.py       (운영)    MySQL -> 서비스 응답
 앞 5행만 읽으므로 16만 행 파일도 몇 초면 끝난다. 인코딩은 utf-8 → cp949 → euc-kr 순으로 자동 판별한다.
 
 **입력** `data/**/*.csv`
-**출력** `csv_headers.txt` (프로젝트 루트)
+**출력** 콘솔. 필요하면 `> csv_headers.txt` 로 리다이렉트해 쓴다.
+결과물은 일회성 조사 로그라 저장소에 두지 않는다.
+
+### run_sql.py
+
+`.env` 접속 정보로 SQL 파일을 실행한다.
+
+MySQL CLI 를 쓰면 되지 않느냐 싶지만 두 가지가 걸렸다. **PowerShell 은 `<`
+리다이렉션을 지원하지 않고**, `.env` 값은 셸 환경변수가 아니라 파일에만 있어서
+`mysql -u $env:MYSQL_USER` 가 빈 값으로 들어간다. `mysql` 이 PATH 에 없는
+환경도 있었다.
+
+주석과 빈 줄을 걷어내고 세미콜론으로 문장을 나눠 하나씩 실행한다. **한
+커넥션을 유지**하므로 `PREPARE` / `EXECUTE` 같은 세션 의존 구문도 동작한다.
+문장별로 성공·실패를 찍고, 결과가 있는 쿼리는 값까지 출력해 QC 판정을 바로
+볼 수 있다.
+
+```
+python src/db/run_sql.py sql/04_transport_pass_assumption.sql
+python src/db/run_sql.py sql/05_qc_transport_pass.sql
+```
+
+**입력** SQL 파일, `.env`
+**출력** 문장별 실행 결과 (실패 시 종료코드 1)
 
 ### load_to_db.py
 
@@ -111,8 +136,19 @@ CSV 8종을 읽어 MySQL 테이블 9개에 넣는다. FK 의존 순서대로 돌
 | `all_age_commute_od_aggregated.csv` + `all_age_commute_od_selected_80.csv` | `fact_commute_od` |
 | `commute_routes_analysis_ready.csv` | `fact_commute_route` |
 | `표면주거비_거래단위.csv` | `fact_rent_transaction` |
+| `정기권_가정.csv` | `dim_transport_pass_assumption` |
 
 **출력** MySQL `multicam` 스키마, `data/quarantine/*_orphan.csv`
+
+**정기권 가정은 CSV 가 원천이다.** `data/정기권_가정.csv` 를 읽어
+`dim_transport_pass_assumption` 에 넣는데, 같은 파일을
+`src/analysis/build_total_burden.py` 도 읽는다. DB 에만 값을 두면 CSV 산출물과
+DB 가 서로 다른 요금 기준을 보게 되므로 원천을 한 곳으로 묶었다.
+
+적재 시점에 두 가지를 막는다. `is_default=1` 이 정확히 1행이 아니면 중단하고,
+통합부담 CSV 의 `정기권_가정코드` 가 DB 기본 가정과 다르면 경고와 함께 재산출
+명령어를 안내한다. 화면에는 A 요금 기준 금액이 뜨는데 조회 계층은 B 요금으로
+계산하는 어긋남을 조용히 넘기지 않기 위해서다.
 
 `dim_business_district`는 CSV에 없다. `업무지구_정의.csv` 40행을 지구명으로 group by 해서 9행을 만들고, `district_id`가 AUTO_INCREMENT라 DB에서 다시 읽어 bridge에 매핑한다.
 
@@ -150,9 +186,14 @@ CSV 8종을 읽어 MySQL 테이블 9개에 넣는다. FK 의존 순서대로 돌
 ```python
 from src.db.query_dong import get_dong, get_dong_by_name
 
-get_dong("11710566")        # 코드로
-get_dong_by_name("마장동")   # 이름으로. 여러 개면 ambiguous
+get_dong("11710566", work_code="11680640")   # 코드로, 근무지 기준
+get_dong_by_name("마장동")                     # 이름으로. 여러 개면 ambiguous
 ```
+
+**`work_code` 를 받는 것이 중요하다.** 근무지를 주면 `fact_commute_route`
+(거주동 × 근무동)에서 실제 경로값을 가져온다. 주지 않으면 거주동 평균값으로
+물러서는데, 그건 "이 동에서 강남까지 몇 분"이 아니라 "이 동 사람들이 평균
+몇 분 걸린다"라 근무지 비교에는 쓸 수 없다.
 
 | status | 조건 | 응답에 담기는 것 |
 |---|---|---|
@@ -164,6 +205,29 @@ get_dong_by_name("마장동")   # 이름으로. 여러 개면 ambiguous
 
 `unreliable`과 `low_confidence`는 **값이 있다.** 숨기지 않고 라벨만 붙인다. 값이 없는 것은 `no_data`뿐이다.
 
+### 서비스가 쓰는 조회 함수
+
+`get_dong` 하나로는 화면을 못 만든다. 자동완성·추천·대체 처리가 전부 별도
+질의라, 웹이 SQL 을 쓰지 않도록 여기에 모았다.
+
+| 함수 | 하는 일 | 왜 필요했나 |
+|---|---|---|
+| `list_dongs(q)` | 행정동 부분일치 검색 | 입력 자동완성 |
+| `list_work_options(home_code, q)` | 그 거주지에서 **갈 수 있는** 근무지 | 없는 조합 선택을 입력 단계에서 차단 |
+| `list_home_options(work_code, q)` | 그 근무지로 **갈 수 있는** 거주지 | 후보 지역 자동완성 |
+| `nearest_routed_work(home, work)` | 경로 없을 때 인근 대체 근무동 | 화면이 비는 것을 막는다 |
+| `recommend_dongs(work_code)` | 총부담 낮은 거주동 추천 | 근무지 기준 개인화의 핵심 |
+
+**범위를 좁히는 두 함수가 이 구조의 요점이다.** 경로는 거주동별 누적 80%
+목적지까지만 있어서(거주동당 평균 72곳, 427개 중 약 17%) 전체를 열어두면
+사용자가 없는 조합을 고르고 결과 화면에서야 실패를 알게 된다. 실패를 잘
+안내하는 것보다 애초에 고를 수 없게 하는 편이 낫다.
+
+`recommend_dongs` 는 총부담 순으로 정렬한 뒤 **행정동 유형별로 한 곳씩만**
+남긴다. 같은 유형이 세 개 나오면 선택지가 사실상 하나이기 때문이다. 표본이
+부실한 동(`no_data`·`unreliable`)은 후보에서 뺀다. 참고용 딱지가 붙은 값을
+"여기가 더 낫습니다"로 내세울 수는 없다.
+
 ### 계산 규칙
 
 `fact_dong_burden`에 총부담·시간비용 컬럼이 없다. 시간가치 가정을 컬럼에 박지 않기로 한 결과다(`sql/README.md` 설계원칙 ①).
@@ -174,6 +238,12 @@ get_dong_by_name("마장동")   # 이름으로. 여러 개면 ambiguous
 ```
 
 교통비는 `FARE_MODE` 상수로 고른다. `"pass"`(정기권 캡) 또는 `"actual"`(실지출). 응답에는 선택된 값과 양쪽 원본을 모두 담아, 화면에서 "실지출 기준으로는 얼마"를 병기할 수 있게 했다.
+
+`TRANSIT_PASS_CAP` 은 55,000원이다. 2026-09-01 기후동행카드가 **모두의카드**로
+대체됐고, 정액형은 기준선을 넘는 금액을 100% 환급하므로 계산상 기준선이 곧
+실질 상한이다. 청년(만 19~39세) 55,000 / 일반 62,000이며, 이 값은
+`dim_transport_pass_assumption` 의 기본 가정과 같아야 한다. 여기만 옛 값이면
+조회 결과가 화면·CSV 와 어긋난다.
 
 `fact_dong_type`은 `(dong_code8, k_value)` 복합키라 `K_VALUE = 6`으로 조인한다. 이 조건을 빼면 `dong_type`이 NULL로 나온다.
 
@@ -191,9 +261,23 @@ python src/db/query_dong.py 마장동        # 조회 시험
 
 `--env`가 `password (설정됨)`을 찍으면 준비된 것이다.
 
-### 알려진 문제
+### 해결된 문제 — 근무지 무관 통근시간
 
-**`oneway_commute_min`은 근무지와 무관하다.** 거주동 거주자의 모든 목적지를 가중평균한 값이라, "이 동에서 강남까지 몇 분"이 아니다. 시간비용과 총부담이 이 값에 의존하므로 근무지 기준 비교에는 쓸 수 없다. `fact_commute_route`(거주동 × 근무동)로 교체하는 방안을 논의 중이다.
+한동안 `fact_dong_burden.oneway_commute_min` 을 그대로 썼다. 거주동 거주자의
+모든 목적지를 가중평균한 값이라 **"이 동에서 강남까지 몇 분"이 아니었다.**
+시간비용과 총부담이 이 값에 의존해 근무지 기준 비교가 성립하지 않았다.
+
+지금은 `get_dong(code, work_code=...)` 가 `fact_commute_route` 에서 그 조합의
+실제 경로값을 가져온다. 근무지를 주지 않았을 때만 평균값으로 물러선다.
+
+### 남은 제약
+
+**경로가 없는 조합이 있다.** 거주동별 누적 80% 목적지만 Tmap 호출했기 때문에
+흐름이 적은 조합은 빠져 있다. `nearest_routed_work` 로 인근 근무동을 대신 쓰되,
+**대체했다는 사실을 응답에 담아 화면에서 밝히도록** 했다.
+
+**승하차역 시퀀스가 없다.** `fact_commute_route` 에 노선명·환승횟수는 있어도
+역 목록이 없어, 화면은 수단·노선 순서까지만 보여준다.
 
 **입력** MySQL `multicam` 스키마, `.env`
 **출력** status 4종 JSON
@@ -215,8 +299,11 @@ python src/db/query_dong.py 마장동        # 조회 시험
 | `fact_rent_transaction` | 577,745 | 16 |
 | `dim_fallback_candidate` | 16 | — |
 | `dim_dong_reliability` | 427 | — |
+| `dim_transport_pass_assumption` | 5 | — |
 
-QC 7종 전항목 통과. 순위 재현 불일치 10개는 표면주거비 INT 반올림 차이로 diff가 전부 ±1이었다.
+QC 7종 전항목 통과. 정기권 QC(`sql/05_qc_transport_pass.sql`) 7종도 통과했고,
+420개 동 **전부가 정기권 상한 초과**로 나왔다. 실지출이 모든 동에서 55,000원을
+넘는다는 뜻이라, 교통비는 지역 간 차이를 만들지 못한다. 순위 재현 불일치 10개는 표면주거비 INT 반올림 차이로 diff가 전부 ±1이었다.
 
 유형화 결과는 팀원A의 FuzzyCMeans k=6 산출물(`dong_typology_final.csv`)을 쓴다. 427행 전체를 넣고 유형이 없는 7개 동은 `type_name` NULL + `flag_insufficient=1`로 남긴다. 군집 입력 변수는 `fact_dong_type_features`에 스냅샷으로 따로 보관하는데, 집계 기준이 다를 수 있어(표면주거비는 거래단위 pooled 중앙값) 재현성을 위해서다.
 
@@ -225,6 +312,7 @@ QC 7종 전항목 통과. 순위 재현 불일치 10개는 표면주거비 INT �
 | 파일 | 역할 | 실행 주기 |
 |---|---|---|
 | `inspect_csv.py` | CSV 구조 조사 | 컬럼이 바뀔 때만 |
+| `run_sql.py` | SQL 파일 실행 | 스키마·QC 실행 시 |
 | `load_to_db.py` | CSV → MySQL 적재 | 데이터 갱신 시 |
 | `check_quarantine.py` | 격리 행 손실 진단 | 적재 직후 |
 | `query_dong.py` | MySQL → 서비스 응답 | 요청마다 |
