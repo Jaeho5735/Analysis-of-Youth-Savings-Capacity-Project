@@ -1,7 +1,8 @@
 """
 MULTICAM_PROJECT : CSV -> MySQL 적재 (v2, 실제 파일 구조 반영)
 
-실행 순서: dim_region -> dim_business_district/bridge -> fact_dong_burden
+실행 순서: dim_region -> dim_transport_pass_assumption
+          -> dim_business_district/bridge -> fact_dong_burden
           -> fact_dong_type -> fact_commute_od -> fact_commute_route
           -> fact_rent_transaction
 
@@ -20,7 +21,8 @@ DATA_DIR = PROJECT_ROOT / "data"
 QUARANTINE_DIR = PROJECT_ROOT / "data" / "quarantine"
 
 LOAD_ORDER = [
-    "dim_region", "dim_business_district", "bridge_district_dong",
+    "dim_region", "dim_transport_pass_assumption",
+    "dim_business_district", "bridge_district_dong",
     "fact_dong_burden", "fact_dong_type", "fact_dong_type_features",
     "fact_commute_od", "fact_commute_route", "fact_rent_transaction",
     "dim_policy",
@@ -80,6 +82,37 @@ def normalize_policy(d: pd.DataFrame) -> pd.DataFrame:
     return d
 
 
+# 정기권 가정. data/정기권_가정.csv 가 단일 원천이고, 같은 파일을
+# build_total_burden.py 도 읽는다. DB에만 값을 두면 CSV 산출물과 DB가 서로 다른
+# 요금 기준을 보게 되므로 원천을 한 곳으로 묶는다.
+PASS_ASSUMPTION_PATH = DATA_DIR / "정기권_가정.csv"
+_PASS_COLS = ["assumption_code", "assumption_name", "monthly_cap",
+              "target_age_min", "target_age_max", "is_default",
+              "valid_from", "valid_to", "source_note"]
+
+
+def load_pass_assumption() -> pd.DataFrame:
+    if not PASS_ASSUMPTION_PATH.exists():
+        sys.exit(f"[중단] 파일 없음: {PASS_ASSUMPTION_PATH}")
+    a = pd.read_csv(PASS_ASSUMPTION_PATH, encoding="utf-8-sig")
+    missing = [c for c in _PASS_COLS if c not in a.columns]
+    if missing:
+        sys.exit(f"[중단] 정기권_가정.csv 컬럼 누락: {missing}")
+    a["monthly_cap"] = pd.to_numeric(a["monthly_cap"], errors="coerce")
+    if a["monthly_cap"].isna().any():
+        sys.exit("[중단] monthly_cap 에 숫자가 아닌 값이 있음")
+    if a["assumption_code"].duplicated().any():
+        sys.exit("[중단] assumption_code 중복")
+    a["is_default"] = pd.to_numeric(a["is_default"], errors="coerce").fillna(0).astype(int)
+    # 기본 가정이 0개면 조회 계층이 어떤 요금을 쓸지 알 수 없고, 2개 이상이면
+    # 쿼리마다 다른 값이 뽑힐 수 있다. 적재 시점에 막는다.
+    if a["is_default"].sum() != 1:
+        sys.exit(f"[중단] is_default=1 인 행이 {a['is_default'].sum()}개 (정확히 1개여야 함)")
+    for c in ("valid_from", "valid_to"):
+        a[c] = pd.to_datetime(a[c], errors="coerce")
+    return a[_PASS_COLS]
+
+
 def truncate_all(eng):
     with eng.begin() as c:
         c.execute(text("SET FOREIGN_KEY_CHECKS=0"))
@@ -121,6 +154,13 @@ def main():
     insert(eng, dim_region, "dim_region")
     valid = set(dim_region["dong_code8"])
 
+    # 1-2. dim_transport_pass_assumption
+    print("[dim_transport_pass_assumption]")
+    pass_df = load_pass_assumption()
+    default_pass = pass_df.loc[pass_df["is_default"] == 1, "assumption_code"].iloc[0]
+    print(f"  읽음 정기권_가정.csv: {len(pass_df)}행 (기본 {default_pass})")
+    insert(eng, pass_df, "dim_transport_pass_assumption")
+
     # 2. dim_business_district + bridge (업무지구_정의.csv 40행, 지구별 그룹)
     print("[dim_business_district / bridge_district_dong]")
     bd = read("업무지구_정의.csv")
@@ -147,6 +187,21 @@ def main():
     print("[fact_dong_burden]")
     burden = read("주거통근_통합부담_행정동별.csv")
     burden["dong_code8"] = burden["행정동코드8"].astype(str).str.zfill(8)
+
+    # 통합부담 CSV가 어떤 정기권 가정으로 산출됐는지 확인한다. DB 기본값과 다르면
+    # 화면에는 A 요금 기준 금액이 뜨는데 조회 계층은 B 요금으로 계산하는 어긋남이
+    # 생긴다. 조용히 넘기지 않고 경고로 드러낸다.
+    if "정기권_가정코드" in burden.columns:
+        csv_pass = burden["정기권_가정코드"].dropna().unique()
+        if len(csv_pass) != 1:
+            sys.exit(f"[중단] 통합부담 CSV에 정기권 가정이 {len(csv_pass)}종 섞여 있음: {csv_pass}")
+        if csv_pass[0] != default_pass:
+            print(f"  ! 경고: CSV 가정 {csv_pass[0]} != DB 기본 가정 {default_pass}")
+            print(f"    build_total_burden.py --assumption {default_pass} 로 재산출을 권함")
+        else:
+            print(f"  정기권 가정 일치: {default_pass}")
+    else:
+        print("  ! 경고: CSV에 정기권_가정코드 없음 - 구 버전(62,000 고정) 산출물로 보임")
 
     center = read("업무중심성_행정동별.csv")
     center["dong_code8"] = center["행정동코드8"].astype(str).str.zfill(8)
@@ -181,6 +236,8 @@ def main():
         "rank_housing_src": m["순위_주거비"],
         "rank_burden_src": m["순위_통합부담"],
         "burden_type_src": m["부담유형"],
+        "transport_pass_code": m.get("정기권_가정코드", pd.Series(default_pass, index=m.index)),
+        "flag_fare_imputed": m.get("교통비_결측대체", pd.Series(False, index=m.index)).fillna(False).astype(int),
     })
     insert(eng, fact_burden, "fact_dong_burden")
 
@@ -322,7 +379,7 @@ def main():
                 "benefit_amount", "benefit_unit", "source_url"]
         insert(eng, pol[keep], "dim_policy")
 
-    print("적재 완료. sql/02_qc.sql 실행할 것.")
+    print("적재 완료. sql/02_qc.sql, sql/05_qc_transport_pass.sql 실행할 것.")
 
 
 if __name__ == "__main__":
