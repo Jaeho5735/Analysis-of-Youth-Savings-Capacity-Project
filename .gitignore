@@ -1,28 +1,76 @@
-# .gitignore 파일 내용 예시
-
+# ── 비밀정보 ────────────────────────────────
 .env
+web/.env
 
-data/*.csv
-data/*.xlsx
+# ── 데이터 ──────────────────────────────────
+# 원본과 중간 산출물은 올리지 않는다(합계 1.7GB, 100MB 초과 5건).
+# 받는 곳과 두는 위치는 data/README.md 에 적어둔다.
+# data/* 로 써야 quarantine 같은 하위 폴더까지 걸린다.
+data/*
 !data/.gitkeep
+!data/README.md
 
-# API캐시는 예외 - 재생성에 몇시간 걸려서 커밋해서 공유함
-!data/kakao_cache.json
-!data/jibun_cache.json
+# 참조표는 예외. 크기가 작고 이게 없으면 파이프라인이 돌지 않는다.
+!data/행정동_기준코드표.csv
+!data/행정동_폐지코드_매핑.csv
+!data/업무지구_정의.csv
+!data/자치구_권역_매핑.csv
+!data/전월세전환율_권역별.csv
+!data/전월세전환율_오피스텔_권역별.csv
+!data/정기권_가정.csv
+!data/정책_조건표_정제.csv
+!data/dong_typology_final.csv
+!data/commute_burden_by_home_dong.csv
+!data/commute_burden_with_network_metrics.csv
+!data/commute_dong_network_metrics.csv
+!data/commute_louvain_membership.csv
+!data/commute_community_summary.csv
+!data/commute_network_filter_sensitivity.csv
+!data/insight_business_district_top10.csv
+!data/insight_housing_commute_tradeoff_summary.csv
+!data/youth_single_household_share_2023_2025.csv
+!data/업무중심성_행정동별.csv
+!data/생활소비부담지수_행정동별.csv
+!data/표면주거비_행정동_통합.csv
+!data/주거통근_통합부담_행정동별.csv
 
-# 파이썬
+# API 캐시는 재수집에 몇 시간 걸려 공유 가치가 있다.
+# 다만 원문 그대로는 7MB 이고 주소가 들어 있으므로 압축본만 올린다.
+#   python -c "import gzip,shutil;[shutil.copyfileobj(open(f'data/{n}.json','rb'),gzip.open(f'data/{n}.json.gz','wb')) for n in ('kakao_cache','jibun_cache')]"
+!data/kakao_cache.json.gz
+!data/jibun_cache.json.gz
+
+# 백업본
+*.bak
+*.bak.csv
+*.bak.json
+
+# ── 파이썬 ──────────────────────────────────
 __pycache__/
-*.pyc
+*.py[cod]
 .venv/
 venv/
- 
-# 에디터/OS
-.vscode/
-.DS_Store
+.ipynb_checkpoints/
 
-# web (LOCA 서비스 화면)
-web/**/*.bak
-web/__pycache__/
-web/**/__pycache__/
-web/.env
+# ── 실행 로그·임시 산출물 ────────────────────
+analysis_result.txt
+csv_headers.txt
+qc_result.txt
+tree.txt
+*.log
+
+# ── web ─────────────────────────────────────
+# scratch: 디버깅용 스크린샷. uploads: 시안 원본 이미지(15MB).
+# preview*.html·tools: templates/ 와 중복인 정적 프리뷰.
 web/scratch/
+web/uploads/
+web/preview*.html
+web/tools/
+
+# ── 에디터·OS ───────────────────────────────
+.vscode/
+.idea/
+.claude/
+.DS_Store
+Thumbs.db
+*.lnk
