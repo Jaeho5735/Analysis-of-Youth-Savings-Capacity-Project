@@ -1,4 +1,4 @@
-# docs/ — 판단의 근거를 남기는 곳
+﻿# docs/ — 판단의 근거를 남기는 곳
 
 README에 두면 본문이 묻히지만 지우기는 아까운 기록들을 모았다.
 
@@ -33,7 +33,7 @@ CSV가 양쪽에 다 있어서 헷갈리기 쉬운데, 기준은 파일 형식�
 
 | 파일 | 만든 스크립트 | 무엇을 증명하나 |
 |---|---|---|
-| `행정동_신뢰도.csv` | `build_dong_reliability.py` | 427개 동의 신뢰도 등급. `dim_dong_reliability.sql` 의 원천 |
+| `행정동_신뢰도.csv` | `build_dong_reliability.py` | 427개 동의 신뢰도 등급. `sql/load/01_dong_reliability.sql` 의 원천 |
 | `도로명근사_정확도_동별.csv` | `verify_road_accuracy.py` | 도로명 배정 정확도를 정답 5,821건으로 역산한 결과 |
 | `표면주거비_배정방식_동별.csv` | `aggregate_assign_method.py` | 동별로 어떤 방식(지번/도로명/텍스트)으로 배정됐는지 |
 | `표면주거비_배정방식_동별_보정.csv` | 〃 | 위 파일의 보정본 |
@@ -43,7 +43,7 @@ CSV가 양쪽에 다 있어서 헷갈리기 쉬운데, 기준은 파일 형식�
 **이 파일들은 수기로 편집하지 않는다.** 값이 이상하면 만든 스크립트를 고쳐
 다시 돌린다. `행정동_신뢰도.csv` 는 특히 그렇다 — 임계값을 바꾸려면
 `build_dong_reliability.py` 상단 `TH_` 상수를 고쳐야 하고, 여기서 손대면
-`dim_dong_reliability.sql` 과 어긋난다.
+`sql/load/01_dong_reliability.sql` 과 어긋난다.
 
 ## 예외 하나
 
