@@ -1,4 +1,4 @@
-"""
+﻿"""
 MULTICAM_PROJECT : CSV -> MySQL 적재 (v2, 실제 파일 구조 반영)
 
 실행 순서: dim_region -> dim_transport_pass_assumption
@@ -21,7 +21,7 @@ DATA_DIR = PROJECT_ROOT / "data"
 QUARANTINE_DIR = PROJECT_ROOT / "data" / "quarantine"
 
 LOAD_ORDER = [
-    "dim_region", "dim_transport_pass_assumption",
+    "dim_region", "map_region_legacy", "dim_transport_pass_assumption",
     "dim_business_district", "bridge_district_dong",
     "fact_dong_burden", "fact_dong_type", "fact_dong_type_features",
     "fact_commute_od", "fact_commute_route", "fact_rent_transaction",
@@ -153,6 +153,34 @@ def main():
     })
     insert(eng, dim_region, "dim_region")
     valid = set(dim_region["dong_code8"])
+
+    # 1-1. map_region_legacy (폐지 행정동 -> 현행 행정동)
+    #
+    # 현행코드8 은 분동 케이스에서 세미콜론으로 여러 코드를 담는다.
+    #   11230536 용신동 -> 11230515;11230533 (신설동 + 용두동)
+    # PK 가 (legacy_code8, current_code8) 이므로 그대로 넣으면 CHAR(8) 에
+    # 17글자가 들어간다. 코드마다 한 행으로 펼친다.
+    print("[map_region_legacy]")
+    lg = read("행정동_폐지코드_매핑.csv")
+    lg["legacy_code8"] = lg["폐지코드8"].astype(str).str.strip().str.zfill(8)
+    lg["current_code8"] = lg["현행코드8"].astype(str).str.split(";")
+    lg = lg.explode("current_code8")
+    lg["current_code8"] = lg["current_code8"].str.strip().str.zfill(8)
+
+    map_legacy = pd.DataFrame({
+        "legacy_code8":  lg["legacy_code8"],
+        "current_code8": lg["current_code8"],
+        "legacy_name":   lg["폐지시점_명칭"],
+        "relation_type": lg["관계"],
+        "note":          lg["근거"],
+    }).drop_duplicates(subset=["legacy_code8", "current_code8"])
+
+    # 현행 코드가 기준표에 없으면 격리한다.
+    # 폐지 코드는 기준표에 없는 것이 정상이므로 검사하지 않는다.
+    map_legacy = quarantine(map_legacy,
+                            map_legacy["current_code8"].isin(valid),
+                            "map_region_legacy", "current_code8")
+    insert(eng, map_legacy, "map_region_legacy")
 
     # 1-2. dim_transport_pass_assumption
     print("[dim_transport_pass_assumption]")
@@ -379,7 +407,7 @@ def main():
                 "benefit_amount", "benefit_unit", "source_url"]
         insert(eng, pol[keep], "dim_policy")
 
-    print("적재 완료. sql/02_qc.sql, sql/05_qc_transport_pass.sql 실행할 것.")
+    print("적재 완료. sql/qc/01_qc.sql, sql/qc/02_qc_transport_pass.sql 실행할 것.")
 
 
 if __name__ == "__main__":
