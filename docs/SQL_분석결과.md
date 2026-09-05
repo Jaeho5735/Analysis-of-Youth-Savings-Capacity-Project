@@ -1,6 +1,6 @@
-# SQL 분석 결과
+﻿# SQL 분석 결과
 
-`sql/02_analysis_queries.sql` 실행 결과와 해석. 쿼리 자체는 `sql/README.md` 참고.
+`sql/analysis/01_analysis_queries.sql` 실행 결과와 해석. 쿼리 자체는 `sql/README.md` 참고.
 
 ## 대표 결과
 

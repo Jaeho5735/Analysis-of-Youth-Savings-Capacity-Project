@@ -1,4 +1,4 @@
-"""
+﻿"""
 행정동 신뢰도 등급 산출
 
 표면주거비 배정 신뢰도 검증 결과를 서비스에서 쓸 등급으로 정리한다.
@@ -12,7 +12,7 @@
 
 산출
     docs/행정동_신뢰도.csv
-    sql/dim_dong_reliability.sql   (DDL + 시드 + QC)
+    sql/load/01_dong_reliability.sql   (DDL + 시드 + QC)
 
 사용법
     python src/analysis/build_dong_reliability.py

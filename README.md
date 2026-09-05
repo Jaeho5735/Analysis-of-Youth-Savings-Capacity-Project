@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
 
 # 🏙️ LOCA
 
@@ -8,7 +8,7 @@
 
 <br>
 
-![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.13-3776AB?style=flat-square&logo=python&logoColor=white)
 ![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?style=flat-square&logo=mysql&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-3.0-000000?style=flat-square&logo=flask&logoColor=white)
 ![pandas](https://img.shields.io/badge/pandas-150458?style=flat-square&logo=pandas&logoColor=white)
@@ -21,7 +21,7 @@
 ![경로](https://img.shields.io/badge/통근_경로-30,839건-9A86D4?style=for-the-badge)
 ![QC](https://img.shields.io/badge/데이터_검증-QC_14종_통과-3D8B40?style=for-the-badge)
 
-**2026.04 ~ 2026.08** · 4인 팀 프로젝트 · 멀티캠퍼스 부트캠프
+**2026.04 ~ 2026.08** 멀티캠퍼스 부트캠프 · 팀 프로젝트 2개월 · 4인
 
 </div>
 
@@ -180,7 +180,7 @@ LOCA는 그 **보이지 않는 청구서**를 숫자로 만들어, 청년이 무
    │
    ├─ analysis/       업무지구 판정 → 통합부담 → 6유형 군집 → 신뢰도 등급
    │
-   └─ db/             MySQL 적재 (13테이블) → QC 14종 → 서비스 조회
+   └─ db/             MySQL 적재 (17테이블 + 뷰 2) → QC 14종 → 서비스 조회
                                                           │
                                                      web/ Flask
 ```
@@ -201,12 +201,12 @@ LOCA는 그 **보이지 않는 청구서**를 숫자로 만들어, 청년이 무
 ### 🚇 교통비는 격차를 만들지 못한다
 
 월 교통비 실지출 격차는
-**58,345원**이지만,
-정기권 상한 적용 시
-**3,284원**으로 줄어듭니다.
+**48,338원**이지만,
+정기권 상한을 적용하면
+**0원**이 됩니다.
 
 420개 동 **전부가 상한 초과**라
-정기권 교통비는 사실상 상수입니다.
+정기권 교통비는 상수입니다.
 
 **→ 통근 부담의 격차는
 돈이 아니라 시간에서 발생합니다.**
@@ -250,12 +250,16 @@ LOCA는 그 **보이지 않는 청구서**를 숫자로 만들어, 청년이 무
 </tr>
 </table>
 
+> 정기권 격차가 정확히 0인 것은 모두의카드 청년 상한 55,000원에 420개 동이
+> 전부 걸린 결과입니다. 데이터가 발견한 법칙이 아니라 **현행 요금 제도가 만든
+> 상태**이고, 상한이 오르면 격차는 되살아납니다.
+
 <br>
 
 ### 📈 추가 발견
 
 **부담 구성비는 주거비 69.9% / 통근부담 30.1%** (중앙값)
-주거비 순위와 통합부담 순위의 스피어만 상관은 **0.958**이지만,
+주거비 순위와 통합부담 순위의 스피어만 상관은 **0.967**이지만,
 **50계단 이상 순위가 뒤바뀐 동이 63개(15.0%)** 있었습니다.
 
 **근무지가 부담 수준 자체를 결정합니다.**
@@ -285,8 +289,8 @@ LOCA는 그 **보이지 않는 청구서**를 숫자로 만들어, 청년이 무
 > ## 🔑 결론
 >
 > 저희 가설은 "월세가 싸 보이는 동네가 사실은 아니다"였습니다.
-> 그런데 데이터는 다른 답을 줬습니다. **월세 착시가 실제로 나타난 곳은 420개 중 3%뿐**이고,
-> 주거비 순위와 통합부담 순위의 상관은 **0.958**이었습니다. 대부분은 싼 동네가 실제로도 유리했습니다.
+> 그런데 데이터는 다른 답을 줬습니다. **월세 착시가 실제로 나타난 곳은 420개 중 14곳(3.3%)뿐**이고,
+> 주거비 순위와 통합부담 순위의 상관은 **0.967**이었습니다. 대부분은 싼 동네가 실제로도 유리했습니다.
 >
 > 진짜 발견은 **그 이득이 얼마나 되돌아오는지가 근무지에 따라 10배 이상 갈린다**는 것입니다.
 >
@@ -337,7 +341,11 @@ MULTICAM_PROJECT/
 │   ├─ pipeline/        부분 재실행 스크립트 (--dry-run 지원)
 │   ├─ validation/      군집 품질 진단
 │   └─ db/              MySQL 적재·조회 계층
-├─ sql/                 스키마 · QC 14종 · 분석 쿼리
+├─ sql/
+│   ├─ init/            스키마 · 파라미터 시드 (빈 DB에 바로 실행)
+│   ├─ load/            적재 후 실행 (FK가 dim_region 참조)
+│   ├─ qc/              적재 검증 QC 14종
+│   └─ analysis/        분석 쿼리 (조회 전용)
 ├─ web/                 Flask 서비스 (6페이지 + 자동완성 API)
 ├─ notebooks/           OD·군집 분석 노트북
 ├─ data/                참조표 · 산출물
@@ -350,20 +358,69 @@ MULTICAM_PROJECT/
 
 ## 🚀 실행
 
+### 🐳 Docker (권장)
+
+MySQL 8.0 과 Flask 를 한 번에 띄웁니다. 로컬에 MySQL 이나 Python 이 없어도 됩니다.
+
 ```bash
-# 1. 환경
+cp .env.example .env        # MYSQL_PASSWORD 만 채우면 됩니다
+docker compose up -d --build
+```
+
+| | |
+|---|---|
+| 서비스 | http://127.0.0.1:5000 |
+| DB | `127.0.0.1:3307` (로컬 MySQL 과 겹치지 않게 3307) |
+
+기동하면 `sql/init/` 이 자동으로 실행돼 **테이블 15개 + 뷰 2개**가 만들어집니다.
+파라미터 시드(시간가치·소득 시나리오·생활비 가정)도 함께 들어갑니다.
+
+```bash
+docker compose exec db mysql -u root -p multicam -e "SHOW FULL TABLES;"
+```
+
+**데이터 적재는 포함하지 않습니다.** 원본 CSV 가 저장소에 없고, 57만 행 적재를
+기동에 넣으면 `docker compose up` 이 수십 분 걸립니다. 환경을 세우는 일과
+데이터를 넣는 일을 분리했습니다. 적재는 아래 3~4단계를 컨테이너 안에서 돌립니다.
+
+```bash
+docker compose exec web python src/db/load_to_db.py
+docker compose exec web python src/db/run_sql.py sql/load/01_dong_reliability.sql
+docker compose exec web python src/db/run_sql.py sql/load/02_fallback_candidate.sql
+```
+
+<br>
+
+### 직접 실행
+
+```bash
+# 1. 환경  (Python 3.13)
 pip install -r requirements.txt
 cp .env.example .env        # MySQL 접속 정보 입력
 
-# 2. DB 구축
-python src/db/run_sql.py sql/01_schema.sql
-python src/db/run_sql.py sql/04_transport_pass_assumption.sql
-python src/db/load_to_db.py
-python src/db/run_sql.py sql/02_qc.sql
+# 2. 스키마 + 파라미터  (데이터 의존 없음)
+python src/db/run_sql.py sql/init/01_schema.sql
+python src/db/run_sql.py sql/init/02_seed_params.sql
+python src/db/run_sql.py sql/init/03_transport_pass_assumption.sql
 
-# 3. 서비스
+# 3. 적재
+python src/db/load_to_db.py
+
+# 4. 서비스용 테이블  (FK가 dim_region 을 참조하므로 적재 후)
+python src/db/run_sql.py sql/load/01_dong_reliability.sql
+python src/db/run_sql.py sql/load/02_fallback_candidate.sql
+
+# 5. 검증  (QC 14종)
+python src/db/run_sql.py sql/qc/01_qc.sql
+python src/db/run_sql.py sql/qc/02_qc_transport_pass.sql
+
+# 6. 서비스
 python web/app.py           # http://127.0.0.1:5000
 ```
+
+**2단계와 4단계를 나눈 것이 중요합니다.** `sql/load/` 의 두 파일은 FK 가
+`dim_region(dong_code8)` 을 참조하는데, `dim_region` 은 3단계에서 채워집니다.
+순서를 바꾸면 FK 위반으로 실패합니다.
 
 원본 데이터는 용량 문제로 저장소에 포함하지 않았습니다.
 받는 곳과 두는 위치는 [`data/README.md`](data/README.md) 참고.
