@@ -74,3 +74,9 @@ web/tools/
 .DS_Store
 Thumbs.db
 *.lnk
+
+requirements_full.txt
+requirements_scan.txt
+web/uploads/
+
+web/uploads/

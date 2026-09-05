@@ -1,3 +1,4 @@
+﻿import os
 import json
 from pathlib import Path
 
@@ -255,4 +256,10 @@ def compare():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # 기본값은 로컬 실행과 동일하다. 컨테이너에서는 compose 가
+    # FLASK_HOST=0.0.0.0 을 넣어 밖에서 접속할 수 있게 한다.
+    app.run(
+        host=os.getenv("FLASK_HOST", "127.0.0.1"),
+        port=int(os.getenv("FLASK_PORT", "5000")),
+        debug=True,
+    )
