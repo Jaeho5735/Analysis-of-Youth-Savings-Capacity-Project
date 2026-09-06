@@ -80,3 +80,6 @@ requirements_scan.txt
 web/uploads/
 
 web/uploads/
+
+.pytest_cache/
+__pycache__/

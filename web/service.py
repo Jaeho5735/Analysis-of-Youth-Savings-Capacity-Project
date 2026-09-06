@@ -428,6 +428,21 @@ def build_page4(base_json, residence=None, workplace=None, deposit=None,
     ]
     b["total"]["value"] = man1(bl["total"])
 
+    # bl 이 확정된 직후에 남긴다. 이 함수는 후보(area) 미입력이면
+    # 아래에서 먼저 return 하는데, 그 화면도 "현재 기준" 패널에 총부담을
+    # 이미 보여주고 있다. 함수 끝에 두면 그 경로에서 값이 안 남는다.
+    # 페이지 간 총부담 일치를 검증할 수 있게 계산값을 그대로 남긴다.
+    # 3페이지가 쓰는 것과 같은 자리·같은 키다. 화면에는 쓰이지 않는다.
+    # 이게 없으면 테스트가 화면 문자열을 파싱해야 하고, 그러면
+    # 계산이 멀쩡해도 템플릿만 바꾸면 테스트가 깨진다.
+    data["_calc"] = {
+        "housing": bl["housing"], "fare": bl["fare"],
+        "time_value": bl["time_value"], "total": bl["total"],
+        "work_days": bl["work_days"], "commute_min": bl["commute_min"],
+        "transit_pass_cap": _pass_for_age(age)["cap"],
+        "home": bl["home_name"], "work": bl["work_name"],
+    }
+
     # 대체 계산했다면 밝힌다. 3페이지와 같은 규칙이므로 문구도 맞춘다.
     sub = bl.get("substitute")
     if sub:
@@ -625,6 +640,7 @@ def build_page5(base_json, area=None, base_code=BASE_DONG_CODE,
         )
         proto = rec["cards"][0]
         cards = []
+        qs = data.get("carry_qs") or ""
         for i, a in enumerate(target.get("alternatives", []), start=1):
             c = copy.deepcopy(proto)
             c["rank"] = str(i)
@@ -671,7 +687,12 @@ def build_page5(base_json, area=None, base_code=BASE_DONG_CODE,
 
     t_from = (r_from or 0) + (bb.get("fare") or 0) + (bb.get("time_value") or 0)
     t_to = tb.get("total")
-    extra = (tb.get("fare", 0) + tb.get("time_value", 0)) - (bb.get("fare", 0) + bb.get("time_value", 0))
+    # .get(키, 0) 은 키가 "없을 때"만 0 을 준다. 키가 있고 값이 None 이면
+    # None 을 그대로 돌려줘 None + 0 에서 터진다.
+    # 근무지와 같은 동을 후보로 넣으면(직주일치) 통근 자료가 없어 fare 가 None 이 된다.
+    # 바로 위 t_from 처럼 or 0 으로 받는다.
+    extra = (((tb.get("fare") or 0) + (tb.get("time_value") or 0))
+             - ((bb.get("fare") or 0) + (bb.get("time_value") or 0)))
 
     v["rent"].update({
         "from_value": man(r_from), "from_label": f"현재 {b_name}",
@@ -753,6 +774,7 @@ def build_page5(base_json, area=None, base_code=BASE_DONG_CODE,
         "residence": base_place or "", "workplace": work_place or "",
         "deposit": deposit or "", "rent": rent or "",
         "work_days": work_days or "",
+        "age": age or "",
     }.items() if v})
     data["carry_qs"] = qs
     _carry_nav(data, qs)
@@ -763,6 +785,20 @@ def build_page5(base_json, area=None, base_code=BASE_DONG_CODE,
     _fill_recommend(data, work_code=work_code, work_label=work_place,
                     exclude=(base_code, target["dong"]["code"]),
                     base_total=t_from)
+    # 페이지 간 총부담 일치를 검증할 수 있게 계산값을 그대로 남긴다.
+    # 3페이지가 쓰는 것과 같은 자리·같은 키다. 화면에는 쓰이지 않는다.
+    # 이게 없으면 테스트가 화면 문자열을 파싱해야 하고, 그러면
+    # 계산이 멀쩡해도 템플릿만 바꾸면 테스트가 깨진다.
+    # 여기서 남기는 값은 후보동이 아니라 "현재 집"(base) 기준이다.
+    # 3·4·6페이지의 총부담과 같은 값이어야 한다.
+    data["_calc"] = {
+        "housing": r_from, "fare": bb.get("fare"),
+        "time_value": bb.get("time_value"), "total": t_from,
+        "work_days": days5, "commute_min": bb.get("commute_min"),
+        "transit_pass_cap": cap5,
+        "home": b_name, "work": work_place,
+        "candidate": {"name": t_name, "total": t_to},
+    }
     return data
 
 
@@ -1217,6 +1253,19 @@ def build_page6(base_json, base_place=None, work_place=None, dong=None,
 
     _refresh_chips(data, area_name=cands[0]["name"] if cands else base["name"],
                    work_name=work_place)
+    # 페이지 간 총부담 일치를 검증할 수 있게 계산값을 그대로 남긴다.
+    # 3페이지가 쓰는 것과 같은 자리·같은 키다. 화면에는 쓰이지 않는다.
+    # 이게 없으면 테스트가 화면 문자열을 파싱해야 하고, 그러면
+    # 계산이 멀쩡해도 템플릿만 바꾸면 테스트가 깨진다.
+    data["_calc"] = {
+        "housing": base["housing"], "fare": base["fare"],
+        "time_value": base["time_value"], "total": base["total"],
+        "work_days": int(_num_only(work_days, WORK_DAYS_DEFAULT)
+                         or WORK_DAYS_DEFAULT),
+        "commute_min": base["commute_min"],
+        "transit_pass_cap": cap,
+        "home": base["name"], "work": work_place,
+    }
     return data
 
 
@@ -1452,6 +1501,7 @@ def build_page3(base_json, residence=None, workplace=None,
         "residence": residence or "", "workplace": workplace or "",
         "deposit": deposit or "", "rent": rent or "",
         "work_days": work_days or "", "depart_time": depart_time or "",
+        "age": age or "",
     })
     data["cta_banner"]["button_href"] = "/explore?" + carry_qs
 

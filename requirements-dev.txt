@@ -1,0 +1,13 @@
+# 테스트 전용 의존성.
+# 운영 이미지(Dockerfile)는 requirements.txt 만 설치하므로 여기 것은 안 들어간다.
+# 설치: pip install -r requirements-dev.txt
+
+-r requirements.txt
+
+pytest>=8.0
+pytest-cov>=5.0
+
+# 정의되지 않은 이름을 실행 없이 찾아준다.
+# 2026-09-07 app.py 의 list_work_options 미import 가 except Exception 에 삼켜져
+# 근무지 자동완성 범위 제한이 조용히 죽어 있었다. 그 종류를 통째로 막는다.
+pyflakes>=3.2

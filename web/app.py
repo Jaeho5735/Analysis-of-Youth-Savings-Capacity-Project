@@ -1,21 +1,28 @@
-﻿import os
+import os
 import json
+import sys
 from pathlib import Path
+
+# 프로젝트 루트를 경로에 넣는다.
+# `python web/app.py` 로 실행하면 sys.path 에 web/ 만 들어가서
+# service.py 가 'service' 와 'web.service' 두 모듈로 이중 로드된다.
+# 항상 web.service 한 경로로만 읽히게 고정한다.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from urllib.parse import urlencode
 
 from flask import Flask, jsonify, render_template, request
 
-from service import (build_page3, build_page4, build_page5, build_page6,
-                     resolve_place)
+from web.service import (build_page3, build_page4, build_page5, build_page6,
+                         resolve_place)
 
 try:
-    from src.db.query_dong import list_dongs, list_home_options
+    from src.db.query_dong import list_dongs, list_home_options, list_work_options
 except ImportError:  # web/ 에서 직접 실행할 때
     import sys
     from pathlib import Path as _P
     sys.path.insert(0, str(_P(__file__).resolve().parents[1]))
-    from src.db.query_dong import list_dongs, list_home_options
+    from src.db.query_dong import list_dongs, list_home_options, list_work_options
 
 app = Flask(__name__)
 
