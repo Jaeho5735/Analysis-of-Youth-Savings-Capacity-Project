@@ -64,6 +64,13 @@
         "value": "75만 원"
       },
       {
+        "id": "age",
+        "icon": "days",
+        "label": "만 나이",
+        "type": "number",
+        "value": "29"
+      },
+      {
         "id": "depart_time",
         "icon": "time",
         "label": "평소 출발시간",

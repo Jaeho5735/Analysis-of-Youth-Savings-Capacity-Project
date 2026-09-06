@@ -171,7 +171,8 @@ def explore_result():
                                base_place=f.get("residence"),
                                work_place=f.get("workplace"),
                                deposit=f.get("deposit"), rent=f.get("rent"),
-                               work_days=f.get("work_days"))
+                               work_days=f.get("work_days"),
+                               age=f.get("age"))
         except Exception as e:
             # DB 가 죽어도 화면은 떠야 한다. 시연 중 사고 방지.
             app.logger.exception("build_page5 failed: %s", e)
@@ -244,7 +245,7 @@ def compare():
         data = build_page6(
             data, base_place=f.get("residence"), work_place=f.get("workplace"),
             dong=dong or None, deposit=f.get("deposit"), rent=f.get("rent"),
-            work_days=f.get("work_days"),
+            work_days=f.get("work_days"), age=f.get("age"),
             carry_qs=urlencode({k: v for k, v in f.items() if v}))
     except Exception as e:
         # 조회가 실패해도 화면은 떠야 하지만, 예시 화면이라는 건 밝힌다.

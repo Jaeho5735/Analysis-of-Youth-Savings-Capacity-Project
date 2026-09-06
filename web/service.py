@@ -24,13 +24,15 @@ from urllib.parse import urlencode
 
 try:
     from src.db.query_dong import (get_dong, get_dong_by_name, list_work_options,
-                                   nearest_routed_work, recommend_dongs)
+                                   nearest_routed_work, recommend_dongs,
+                                   get_policies)
 except ImportError:  # web/ 에서 직접 실행할 때
     import sys
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from src.db.query_dong import (get_dong, get_dong_by_name, list_work_options,
-                                   nearest_routed_work, recommend_dongs)
+                                   nearest_routed_work, recommend_dongs,
+                                   get_policies)
 
 try:
     from web.resolve_place import resolve as resolve_place
@@ -95,14 +97,61 @@ def _pass_for_age(age):
             "name": "모두의카드 일반", "code": "general",
             "note": f"만 {n}세는 청년 대상(만 19~39세)이 아니라 일반 기준 "
                     f"{TRANSIT_PASS_CAP_GENERAL:,}원이 적용돼요(환급률 20%)."}
-DEPOSIT_ANNUAL_RATE = 0.0348          # 보증금 월환산 연이율
+# ─────────────────────────────────────────────────────────────
+# 보증금 월환산 전월세전환율
+#
+# 이전에는 0.0348 단일 상수를 썼는데, 근거를 찾을 수 없는 값이었다.
+# 파이프라인이 표면주거비를 만들 때 쓴 전환율(한국부동산원 지역별 고시,
+# 거래 577,761건에 실제 적용된 값)의 중앙값은 5.9% 이고, 관측 범위는
+# 연립다세대 4.1~5.6 / 단독다가구 5.2~7.5 / 오피스텔 5.5~5.8 이라
+# 3.48% 는 전체 분포의 아래쪽 바깥이었다.
+#
+# 그 결과 "내 집"만 주거비가 낮게 잡히고 후보동은 실제 전환율로 계산돼,
+# 같은 비교표의 두 열이 다른 산식 위에 놓여 있었다. 보증금이 클수록
+# 어긋나서(1억이면 월 12.7만원) 이사 이득이 과소평가되는 방향이었다.
+#
+# 권역별 값은 거래단위 산출물의 권역별 중앙값이다(괄호는 거래 수).
+# 사용자가 주택유형을 입력하지 않으므로 유형별로 나누지 않고 권역만 쓴다.
+# 권역을 알 수 없으면 전체 중앙값으로 물러선다.
+DEPOSIT_RATE_BY_REGION = {
+    "도심권": 0.0610,   # 30,360건
+    "동남권": 0.0539,   # 103,894건
+    "동북권": 0.0620,   # 161,402건
+    "서남권": 0.0590,   # 204,026건
+    "서북권": 0.0620,   # 78,079건
+}
+DEPOSIT_RATE_DEFAULT = 0.0590   # 전체 중앙값 5.9%
+
+
+def _region_of(dong_result):
+    """get_dong() 결과에서 권역을 꺼낸다. 없으면 None.
+
+    query_dong 이 region_group 을 돌려주지 않는 구버전이어도 조용히
+    None 이 되고 전체 중앙값으로 계산된다. 화면이 멈추지 않게 한다.
+    """
+    if not isinstance(dong_result, dict):
+        return None
+    return (dong_result.get("dong") or {}).get("region_group")
+
+
+def _deposit_monthly(deposit, dong_result=None):
+    """보증금(만원 단위 입력)을 월 환산액으로 바꾼다.
+
+    돌려주는 것: (월환산액_원, 적용전환율, 보증금_원)
+    """
+    dep = (_num_only(deposit, 0) or 0) * 10_000
+    rate = DEPOSIT_RATE_BY_REGION.get(_region_of(dong_result),
+                                      DEPOSIT_RATE_DEFAULT)
+    return dep * rate / 12, rate, dep
+
 SEOUL_AVG_COMMUTE_MIN = 29.4          # 2페이지 벤치마크와 같은 값
 
 # 시연 경로(잠원동 -> 역삼1동). 이 조합에만 역 목록과 혼잡도가 있다.
 # fact_commute_route 에는 이용노선과 환승횟수만 있고 역 이름 시퀀스가 없어서,
 # 임의 입력에 대해서는 역 목록을 만들 수 없다. 혼잡도도 17번 노트북이 이 경로에
 # 대해서만 수집했다. 없는 것을 지어내지 않고, 없다고 밝힌다.
-#   시안 검산: 1,000만 x 0.0348 / 12 = 29,000원 -> 월세 75만 + 2.9만 = 77.9만
+#   시안 검산(동남권 5.39%): 1,000만 x 0.0539 / 12 = 44,917원
+#   -> 월세 75만 + 4.5만 = 79.5만. 옛 3.48% 기준 77.9만에서 1.6만 오른다.
 
 
 
@@ -182,7 +231,35 @@ def _code_of(place, default):
     return (r.get("dong_code") or default) if r.get("status") == "ok" else default
 
 
-def _baseline(residence, workplace, deposit=None, rent=None, work_days=None):
+
+def _monthly(b, days, cap):
+    """경로 한 건에서 월 단위 값을 만든다. 모든 페이지가 이 함수만 쓴다.
+
+    같은 사람의 총부담이 페이지마다 달랐던 원인이 여기 있었다. 같은 계산이
+    세 군데에 따로 적혀 있었고, 각자 다른 값을 썼다.
+      - 3페이지: 사용자 출근일수 + 나이별 정기권 상한
+      - 4·6페이지: 사용자 출근일수 + 정기권 상한 55,000 고정
+      - 5페이지: 조회 계층이 이미 계산한 값(21일·55,000 고정)을 그대로 사용
+    그래서 22일·40세로 입력하면 세 페이지가 전부 다른 숫자를 보여줬다.
+
+    days 와 cap 을 받는 이유는, 이 두 가지가 사용자 입력에 따라 달라지는
+    유일한 값이기 때문이다. 여기서 상수를 읽지 않는다.
+    """
+    minutes = b.get("commute_min")
+    hours = round(minutes * 2 * days / 60, 2) if minutes is not None else None
+    time_value = round(hours * TIME_VALUE_PER_HOUR) if hours is not None else None
+
+    one = b.get("oneway_fare")
+    fare_actual = one * 2 * days if one is not None else None
+    fare = min(fare_actual, cap) if fare_actual is not None else None
+
+    return {"commute_min": minutes, "monthly_commute_hour": hours,
+            "time_value": time_value, "fare": fare, "fare_actual": fare_actual,
+            "transfer": b.get("transfer"), "work_days": days, "cap": cap}
+
+
+def _baseline(residence, workplace, deposit=None, rent=None, work_days=None,
+              age=None):
     """사용자 입력으로 '현재 기준' 값을 만든다. build_page3 와 같은 산식을 쓴다.
 
     실패하면 None 을 돌려준다. 4페이지는 이 값이 없으면 시연 기본값을 그대로 둔다.
@@ -212,16 +289,13 @@ def _baseline(residence, workplace, deposit=None, rent=None, work_days=None):
 
     b = target.get("burden") or {}
     days = int(_num_only(work_days, 21) or 21)
-    dep = (_num_only(deposit, 0) or 0) * 10_000
+    dep_monthly, _rate, dep = _deposit_monthly(deposit, target)
     mrent = (_num_only(rent, 0) or 0) * 10_000
 
-    housing = mrent + dep * DEPOSIT_ANNUAL_RATE / 12
-    minutes = b.get("commute_min")
-    hours = round(minutes * 2 * days / 60, 2) if minutes is not None else None
-    time_value = round(hours * TIME_VALUE_PER_HOUR) if hours is not None else None
-    one_fare = b.get("oneway_fare")
-    fare_actual = one_fare * 2 * days if one_fare is not None else None
-    fare = min(fare_actual, TRANSIT_PASS_CAP) if fare_actual is not None else None
+    housing = mrent + dep_monthly
+    m = _monthly(b, days, _pass_for_age(age)["cap"])
+    minutes, hours = m["commute_min"], m["monthly_commute_hour"]
+    time_value, fare, fare_actual = m["time_value"], m["fare"], m["fare_actual"]
 
     return {
         "home_name": home.get("dong_name") or residence,
@@ -308,7 +382,7 @@ def build_page4(base_json, residence=None, workplace=None, deposit=None,
 
     _carry_nav(data, carry_qs)
 
-    bl = _baseline(residence, workplace, deposit, rent, work_days)
+    bl = _baseline(residence, workplace, deposit, rent, work_days, age=age)
     if bl is None:
         # 조회에 실패해도 사용자가 입력한 직장·거주지는 그대로 보여준다.
         # 시연 기본값(삼정KPMG·잠원동)을 남기면 입력하지 않은 값이
@@ -452,7 +526,7 @@ def build_page4(base_json, residence=None, workplace=None, deposit=None,
 
 def build_page5(base_json, area=None, base_code=BASE_DONG_CODE,
                 work_code=WORK_DONG_CODE, base_place=None, work_place=None,
-                deposit=None, rent=None, work_days=None):
+                deposit=None, rent=None, work_days=None, age=None):
     """page5 JSON 을 조회 결과로 갱신해 돌려준다. 원본은 건드리지 않는다.
 
     base_place / work_place 를 넘기면 그 값으로 비교 기준을 잡는다. 이걸 안 넘기면
@@ -573,7 +647,17 @@ def build_page5(base_json, area=None, base_code=BASE_DONG_CODE,
         return data
 
     # ── 정상 비교 ──
-    tb, bb = _burden(target), _burden(base)
+    # 조회 계층이 돌려준 fare·time_value 는 기본 가정(21일·청년 상한)으로
+    # 계산된 값이라 그대로 쓰면 3·4페이지와 어긋난다. 여기서 다시 만든다.
+    days5 = int(_num_only(work_days, WORK_DAYS_DEFAULT) or WORK_DAYS_DEFAULT)
+    cap5 = _pass_for_age(age)["cap"]
+    tb, bb = dict(_burden(target)), dict(_burden(base))
+    tb.update(_monthly(tb, days5, cap5))
+    bb.update(_monthly(bb, days5, cap5))
+    for d in (tb, bb):
+        h = d.get("housing_cost")
+        d["total"] = (None if None in (h, d.get("fare"), d.get("time_value"))
+                      else h + d["fare"] + d["time_value"])
     r_from, r_to = bb.get("housing_cost"), tb.get("housing_cost")
 
     # 현재 집 주거비는 그 동네 중앙값이 아니라 사용자가 입력한 월세·보증금을 쓴다.
@@ -582,8 +666,7 @@ def build_page5(base_json, area=None, base_code=BASE_DONG_CODE,
     own_housing = None
     if rent or deposit:
         own_housing = ((_num_only(rent, 0) or 0) * 10_000
-                       + (_num_only(deposit, 0) or 0) * 10_000
-                       * DEPOSIT_ANNUAL_RATE / 12)
+                       + _deposit_monthly(deposit, base)[0])
         r_from = own_housing
 
     t_from = (r_from or 0) + (bb.get("fare") or 0) + (bb.get("time_value") or 0)
@@ -813,8 +896,123 @@ def _base_with_fallback(base_code, work_code):
     return alt, sub
 
 
+
+# ═════════════════════════════════════════════════════════════
+# 지원 정책 카드 (6페이지 support 섹션)
+# ═════════════════════════════════════════════════════════════
+
+# 아이콘은 강사님 시안의 4종을 그대로 돌려쓴다. 새 이미지를 만들지 않는다.
+_SUPPORT_ICONS = {
+    "housing_subsidy": "images/p6-support-1.png",
+    "transport":       "images/p6-support-2.png",
+    "deposit_product": "images/p6-support-3.png",
+    "loan":            "images/p6-support-4.png",
+    "living_subsidy":  "images/p6-support-4.png",
+    "info":            "images/p6-support-4.png",
+}
+_SUPPORT_ICON_DEFAULT = "images/p6-support-1.png"
+
+# 부담요인 태그: 1 높은월세 2 높은보증금 3 높은통근교통비
+#               4 낮은현금흐름 5 자산형성 6 보증금반환위험
+
+
+def _support_rank(base_col, deposit=None, rent=None):
+    """이 사람의 부담 구성으로 부담요인 태그에 점수를 매긴다.
+
+    조건 필터(나이·소득·월세)만으로는 개인화가 되지 않는다. 청년 대상
+    정책 대부분이 나이와 소득만 보기 때문에, 20~39세 구간에서는 거의
+    같은 목록이 나온다. 그래서 "받을 수 있는가"는 조건으로 거르고,
+    "먼저 보여줄 것인가"는 여기서 정한다.
+
+    쓰는 재료는 이미 계산된 값뿐이다. 임계값을 새로 만들지 않으려고
+    서울 평균 통근시간처럼 이미 화면에 쓰고 있는 기준선만 쓴다.
+    """
+    score = {1: 3, 2: 2, 3: 2, 4: 1, 5: 0, 6: 0}   # 기본 순서
+    if not base_col:
+        return score
+
+    total = base_col.get("total") or 0
+    housing = base_col.get("housing") or 0
+    minutes = base_col.get("commute_min")
+
+    # 주거비가 부담의 대부분이면 월세·보증금 지원을 앞으로
+    if total and housing / total >= 0.70:
+        score[1] += 4
+        score[2] += 2
+
+    # 통근이 서울 평균보다 길면 교통 지원을 앞으로
+    if minutes is not None and minutes > SEOUL_AVG_COMMUTE_MIN:
+        score[3] += 4
+
+    # 보증금 월환산이 월세보다 크면 보증금 쪽 부담이 실질적으로 더 크다
+    dep_monthly = _deposit_monthly(deposit)[0]
+    mrent = (_num_only(rent, 0) or 0) * 10_000
+    if dep_monthly and mrent and dep_monthly > mrent:
+        score[2] += 3
+        score[6] += 2
+
+    return score
+
+
+def _support_items(base_col=None, age=None, deposit=None, rent=None):
+    """support.items 를 정책 조회 결과로 만든다.
+
+    실패하면 None 을 돌려주고, 호출한 쪽은 시안 기본값을 그대로 둔다.
+    지원 정보가 안 뜨는 것보다 화면이 죽는 게 더 나쁘다.
+    """
+    rent_won = (_num_only(rent, 0) or 0) * 10_000 or None
+    try:
+        res = get_policies(age=_num_only(age, None), income=None, rent=rent_won)
+    except Exception:
+        return None, None
+    matched = res.get("matched") or []
+    if not matched:
+        return None, None
+
+    score = _support_rank(base_col, deposit, rent)
+
+    def key(p):
+        # 점수 높은 태그 먼저 -> 상시 신청 먼저(기간제를 앞세우면 이미 마감된
+        # 사업이 첫 칸에 온다) -> 이름순으로 고정해 매번 같은 순서가 되게
+        period_last = 1 if (p.get("apply_type") or "") == "기간제" else 0
+        info_last = 1 if p.get("is_info") else 0
+        return (-score.get(p.get("burden_tag"), 0), info_last, period_last,
+                p.get("policy_name") or "")
+
+    items = []
+    for p in sorted(matched, key=key):
+        name = p.get("policy_name") or ""
+        items.append({
+            "label": _wrap_support_label(name),
+            "icon": _SUPPORT_ICONS.get(p.get("category"), _SUPPORT_ICON_DEFAULT),
+            # 시안은 전부 "#" 이라 눌러도 아무 일이 없었다. 공식 페이지로 보낸다.
+            "href": p.get("source_url") or "#",
+        })
+    return items, res.get("as_of")
+
+
+def _wrap_support_label(name, width=9):
+    """카드 라벨을 두 줄로 나눈다. 시안도 '청년전용\\n주거 지원' 형태다.
+
+    한 줄이 길어지지 않게, 두 줄의 길이 차가 가장 작은 지점에서 자른다.
+    """
+    name = (name or "").strip()
+    if len(name) <= width:
+        return name
+    words = name.split(" ")
+    if len(words) < 2:
+        return name
+    best, best_cost = None, None
+    for i in range(1, len(words)):
+        a, b = " ".join(words[:i]), " ".join(words[i:])
+        cost = max(len(a), len(b)) * 10 + abs(len(a) - len(b))
+        if best_cost is None or cost < best_cost:
+            best, best_cost = (a, b), cost
+    return best[0] + "\n" + best[1]
+
+
 def _col_of(place, work_code, deposit=None, rent=None, work_days=None,
-            own_housing=False, reason=None):
+            own_housing=False, reason=None, cap=None):
     """비교 표의 한 열을 만든다. 조회 실패하면 None.
 
     reason 에 리스트를 넘기면 실패 사유를 담아준다. 화면에서 "안 나온다"만
@@ -839,17 +1037,15 @@ def _col_of(place, work_code, deposit=None, rent=None, work_days=None,
     b = t.get("burden") or {}
     days = int(_num_only(work_days, WORK_DAYS_DEFAULT) or WORK_DAYS_DEFAULT)
 
-    minutes = b.get("commute_min")
-    hours = minutes * 2 * days / 60 if minutes is not None else None
-    time_value = round(hours * TIME_VALUE_PER_HOUR) if hours is not None else 0
-    one = b.get("oneway_fare")
-    fare = min(one * 2 * days, TRANSIT_PASS_CAP) if one is not None else 0
+    m = _monthly(b, days, cap if cap is not None else TRANSIT_PASS_CAP)
+    minutes = m["commute_min"]
+    time_value = m["time_value"] if m["time_value"] is not None else 0
+    fare = m["fare"] if m["fare"] is not None else 0
 
     # 현재 집만 사용자가 입력한 월세·보증금을 쓴다. 후보는 그 동네 중앙값.
     if own_housing and (rent or deposit):
         housing = ((_num_only(rent, 0) or 0) * 10_000
-                   + (_num_only(deposit, 0) or 0) * 10_000
-                   * DEPOSIT_ANNUAL_RATE / 12)
+                   + _deposit_monthly(deposit, t)[0])
     else:
         housing = b.get("housing_cost") or 0
 
@@ -863,7 +1059,8 @@ def _col_of(place, work_code, deposit=None, rent=None, work_days=None,
 
 
 def build_page6(base_json, base_place=None, work_place=None, dong=None,
-                deposit=None, rent=None, work_days=None, carry_qs=""):
+                deposit=None, rent=None, work_days=None, carry_qs="",
+                age=None):
     """상세 비교 표·차트·교통 카드를 실제 조회값으로 채운다.
 
     화면 구성은 그대로 두고 값만 바꾼다. 열은 현재 집 + 후보 최대 3곳이며,
@@ -876,7 +1073,8 @@ def build_page6(base_json, base_place=None, work_place=None, dong=None,
         return data
 
     work_code = _code_of(work_place, None)
-    base = _col_of(base_place, work_code, deposit, rent, work_days,
+    cap = _pass_for_age(age)["cap"]
+    base = _col_of(base_place, work_code, deposit, rent, work_days, cap=cap,
                    own_housing=True)
     base_sub = None
     if base is None and work_code:
@@ -888,6 +1086,7 @@ def build_page6(base_json, base_place=None, work_place=None, dong=None,
             base_sub = None
         if base_sub:
             base = _col_of(base_place, base_sub["code"], deposit, rent, work_days,
+                           cap=cap,
                            own_housing=True)
     if not base or not work_code:
         # 조용히 시연 기본값을 보여주면 사용자는 자기 입력 기준 표로 오해한다.
@@ -899,7 +1098,7 @@ def build_page6(base_json, base_place=None, work_place=None, dong=None,
     cols = [base]
     seen = {base["name"]}
     if dong:
-        c = _col_of(dong, work_code, work_days=work_days)
+        c = _col_of(dong, work_code, work_days=work_days, cap=cap)
         if c and c["name"] not in seen:
             cols.append(c)
             seen.add(c["name"])
@@ -1003,6 +1202,18 @@ def build_page6(base_json, base_place=None, work_place=None, dong=None,
         tail = (f" 다만 {len(longer)}곳은 현재 {base['name']}보다 출근시간이 늘어납니다."
                 if longer else "")
         data["ai"]["text"] = ",\n".join(parts) + f"이 눈에 띄어요.{tail}"
+
+    # ── 지원 정책. 조회 실패하면 시안 기본값을 그대로 둔다.
+    sup_items, sup_as_of = _support_items(base, age=age, deposit=deposit, rent=rent)
+    if sup_items:
+        sup = data["support"]
+        sup["items"] = sup_items
+        # 자격 판정이 아니라 탐색 우선순위라는 것을 한 줄로 밝힌다.
+        # 카드에는 이름과 아이콘만 들어가서, 요건 안내는 여기 말고 자리가 없다.
+        sup["more"]["label"] = (
+            f"연령·소득 요건은 각 기관에서 확인하세요 ({sup_as_of} 기준)"
+            if sup_as_of else "연령·소득 요건은 각 기관에서 확인하세요")
+        sup["more"]["href"] = "#"
 
     _refresh_chips(data, area_name=cands[0]["name"] if cands else base["name"],
                    work_name=work_place)
@@ -1297,10 +1508,10 @@ def build_page3(base_json, residence=None, workplace=None,
 
     b = target.get("burden") or {}
     days = int(_num_only(work_days, 21) or 21)
-    dep = (_num_only(deposit, 0) or 0) * 10_000        # 만원 -> 원
+    dep_monthly, dep_rate, dep = _deposit_monthly(deposit, target)
     mrent = (_num_only(rent, 0) or 0) * 10_000
 
-    housing = mrent + dep * DEPOSIT_ANNUAL_RATE / 12
+    housing = mrent + dep_monthly
     minutes = b.get("commute_min")
     hours = round(minutes * 2 * days / 60, 2) if minutes is not None else None
     time_value = round(hours * TIME_VALUE_PER_HOUR) if hours is not None else None
@@ -1373,7 +1584,8 @@ def build_page3(base_json, residence=None, workplace=None,
     if housing:
         notes.append(f"주거비 {housing / 10000:.1f}만원 = 월세 {mrent / 10000:.0f}만원 "
                      f"+ 보증금 {dep / 10000:.0f}만원을 월로 환산한 "
-                     f"{(housing - mrent) / 10000:.1f}만원 (전월세전환율 3.48% 적용)")
+                     f"{(housing - mrent) / 10000:.1f}만원 "
+                     f"(전월세전환율 {dep_rate * 100:.2f}% 적용)")
     if fare is not None and fare_actual is not None and fare_actual > fare:
         notes.append(f"교통비 {fare / 10000:.1f}만원 = 실제 이용액은 월 "
                      f"{fare_actual / 10000:.1f}만원이지만, {pass_info['name']}"
