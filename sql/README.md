@@ -1,4 +1,4 @@
-# sql/ — 스키마 정의와 분석 쿼리
+﻿# sql/ — 스키마 정의와 분석 쿼리
 
 ## 왜 필요했나
 
@@ -38,21 +38,47 @@
 
 `dim_dong_reliability`가 그 장치다. 표면주거비가 없는 동(`no_data`)과 있지만 배정이 부정확한 동(`unreliable`, `low_confidence`)은 서비스에서 다르게 다뤄야 한다. 이걸 컬럼 플래그로 흩어놓지 않고 등급 하나로 모았다.
 
-## 파일과 실행 순서
+## 폴더 구조
+
+파일이 늘면서 번호만으로는 실행 시점을 알 수 없게 됐다. `02` 로 시작하는 파일이
+두 개였고, 서비스용 테이블 두 개는 아예 번호가 없었다. **언제 돌릴 수 있는가**를
+기준으로 네 폴더로 나눴다.
 
 ```
-01_schema.sql                 스키마 (테이블 13 + 뷰 2)
-01b_seed_params.sql           파라미터 초기값 (CSV 소스가 없는 값)
-04_transport_pass_assumption.sql  정기권 가정 테이블 + 컬럼 확장
-      ↓  여기서 src/db/load_to_db.py 실행
-02_qc.sql                     적재 검증 7종
-05_qc_transport_pass.sql      정기권 검증 7종
-02_analysis_queries.sql       분석 쿼리 6종
-      ↓  서비스용 테이블
-dim_fallback_candidate.sql    결측 동 인근 후보 16행
-dim_dong_reliability.sql      행정동 신뢰도 등급 427행
+sql/
+├─ init/      데이터에 의존하지 않는다. 빈 DB에 바로 실행 가능
+├─ load/      dim_region 이 채워진 뒤에만 실행 가능
+├─ qc/        적재 검증. 실패해도 데이터는 그대로다
+└─ analysis/  조회 전용. 자동 실행 대상이 아니다
+```
+
+**`init/` 과 `load/` 를 가른 것이 핵심이다.** `load/` 의 두 파일은 FK 가
+`dim_region(dong_code8)` 을 참조하는데 `dim_region` 은 `load_to_db.py` 가 CSV 로
+채운다. 빈 스키마에서 먼저 돌리면 FK 위반으로 실패한다. 순서가 문서에만
+적혀 있으면 언젠가 어긋나므로 폴더로 고정했다.
+
+`analysis/` 를 따로 뺀 이유는 다르다. 이 파일들은 결과를 만들지 않고 **읽기만**
+한다. 자동화 도구가 폴더 전체를 실행하는 상황(컨테이너 초기화 등)에서 분석
+쿼리까지 돌아가면 시간만 쓰고 얻는 것이 없다.
+
+폴더 안에서는 번호가 곧 실행 순서다.
+
+## 실행 순서
+
+```
+sql/init/01_schema.sql                     테이블 14 + 뷰 2 생성
+sql/init/02_seed_params.sql                파라미터 초기값 (CSV 소스가 없는 값)
+sql/init/03_transport_pass_assumption.sql  정기권 가정 테이블 + 컬럼 확장
+      ↓  src/db/load_to_db.py 실행 (CSV -> 테이블 11개)
+sql/load/01_dong_reliability.sql           행정동 신뢰도 등급 427행
+sql/load/02_fallback_candidate.sql         결측 동 인근 후보 16행
+      ↓  적재 검증
+sql/qc/01_qc.sql                           적재 검증 7종
+sql/qc/02_qc_transport_pass.sql            정기권 검증 7종
       ↓  필요할 때
-06_verify_dong.sql            한 행정동의 화면 표시값을 DB와 대조
+sql/analysis/01_analysis_queries.sql       분석 쿼리 6종
+sql/analysis/02_case_recompute.sql         케이스 재계산
+sql/qc/03_verify_dong.sql                  한 행정동의 화면 표시값을 DB와 대조
 ```
 
 `src/db/run_sql.py` 가 `.env` 접속 정보로 파일을 실행한다. PowerShell 은 `<`
@@ -60,11 +86,11 @@ dim_dong_reliability.sql      행정동 신뢰도 등급 427행
 경로마다 걸린다.
 
 ```powershell
-python src/db/run_sql.py sql/01_schema.sql
-python src/db/run_sql.py sql/04_transport_pass_assumption.sql
+python src/db/run_sql.py sql/init/01_schema.sql
+python src/db/run_sql.py sql/init/03_transport_pass_assumption.sql
 python src/db/load_to_db.py
-python src/db/run_sql.py sql/02_qc.sql
-python src/db/run_sql.py sql/05_qc_transport_pass.sql
+python src/db/run_sql.py sql/qc/01_qc.sql
+python src/db/run_sql.py sql/qc/02_qc_transport_pass.sql
 ```
 
 MySQL CLI 를 직접 쓸 수도 있다.
@@ -72,36 +98,50 @@ MySQL CLI 를 직접 쓸 수도 있다.
 ```sql
 mysql -u root -p --default-character-set=utf8mb4
 
-SOURCE C:/MULTICAM_PROJECT/sql/01_schema.sql;
-SOURCE C:/MULTICAM_PROJECT/sql/01b_seed_params.sql;
+SOURCE C:/MULTICAM_PROJECT/sql/init/01_schema.sql;
+SOURCE C:/MULTICAM_PROJECT/sql/init/02_seed_params.sql;
 -- (적재)
-SOURCE C:/MULTICAM_PROJECT/sql/02_qc.sql;
-SOURCE C:/MULTICAM_PROJECT/sql/02_analysis_queries.sql;
-SOURCE C:/MULTICAM_PROJECT/sql/dim_fallback_candidate.sql;
-SOURCE C:/MULTICAM_PROJECT/sql/dim_dong_reliability.sql;
+SOURCE C:/MULTICAM_PROJECT/sql/qc/01_qc.sql;
+SOURCE C:/MULTICAM_PROJECT/sql/analysis/01_analysis_queries.sql;
+SOURCE C:/MULTICAM_PROJECT/sql/load/02_fallback_candidate.sql;
+SOURCE C:/MULTICAM_PROJECT/sql/load/01_dong_reliability.sql;
 ```
 
 Workbench를 쓴다면 연결된 탭에서 `File > Open SQL Script`로 열고 번개(⚡) 버튼을 누른다. `unconnected` 탭에서는 실행 버튼이 비활성이다.
 
-### 01_schema.sql
+### init/01_schema.sql
 
-테이블 13개와 뷰 2개를 만든다. 실행해도 데이터는 0행이다.
+테이블 14개와 뷰 2개를 만든다. 실행해도 데이터는 0행이다.
 
-| 구분 | 테이블 | 행수 |
+| 구분 | 테이블 | 행수 | 채우는 곳 |
+|---|---|---|---|
+| 기준 | `dim_region` | 427 | `load_to_db.py` |
+| | `map_region_legacy` | **0** | **미적재** |
+| 파라미터 | `dim_time_value` | 1 | `init/02_seed_params.sql` |
+| | `dim_income_scenario` | 5 | `init/02_seed_params.sql` |
+| | `dim_living_cost_assumption` | 1 | `init/02_seed_params.sql` |
+| 업무지구 | `dim_business_district` / `bridge_district_dong` | 9 / 40 | `load_to_db.py` |
+| 분석 결과 | `fact_dong_burden` | 420 | `load_to_db.py` |
+| | `fact_dong_type` / `fact_dong_type_features` | 427 / 427 | `load_to_db.py` |
+| 원자료 | `fact_commute_od` | 164,032 | `load_to_db.py` |
+| | `fact_commute_route` | 30,636 | `load_to_db.py` |
+| | `fact_rent_transaction` | 577,745 | `load_to_db.py` |
+| 정책 | `dim_policy` | 12 | `load_to_db.py` |
+
+나머지 3개는 다른 파일이 정의한다. 세 파일 모두 DDL 과 데이터가 한 곳에 있다.
+
+| 테이블 | 정의 파일 | 행수 |
 |---|---|---|
-| 기준 | `dim_region` | 427 |
-| | `map_region_legacy` | 9 |
-| 파라미터 | `dim_time_value` / `dim_income_scenario` / `dim_living_cost_assumption` | 1 / 5 / 1 |
-| 업무지구 | `dim_business_district` / `bridge_district_dong` | 9 / 40 |
-| 분석 결과 | `fact_dong_burden` | 420 |
-| | `fact_dong_type` / `fact_dong_type_features` | 427 / 427 |
-| 원자료 | `fact_commute_od` | 164,032 |
-| | `fact_commute_route` | 30,636 |
-| | `fact_rent_transaction` | 577,745 |
-| 정책 | `dim_policy` | (미확정) |
-| 서비스 | `dim_fallback_candidate` | 16 |
-| | `dim_dong_reliability` | 427 |
-| | `dim_transport_pass_assumption` | 5 |
+| `dim_transport_pass_assumption` | `init/03_transport_pass_assumption.sql` | 5 |
+| `dim_dong_reliability` | `load/01_dong_reliability.sql` | 427 |
+| `dim_fallback_candidate` | `load/02_fallback_candidate.sql` | 16 |
+
+**전체는 테이블 17개 + 뷰 2개다.** 채워지는 경로가 CSV 적재 · SQL 시드 · SQL 자체
+INSERT 세 갈래로 나뉘어 있어, 한 파일만 세면 숫자가 맞지 않는다.
+
+**`map_region_legacy` 는 아직 비어 있다.** 폐지 행정동 매핑용 테이블이고
+`data/행정동_폐지코드_매핑.csv` 9건이 이미 있는데 적재 코드가 없다. 옛 동명으로
+검색하면 매칭되지 않는다.
 
 뷰 두 개가 반복 계산을 흡수한다.
 
@@ -110,13 +150,21 @@ Workbench를 쓴다면 연결된 탭에서 `File > Open SQL Script`로 열고 �
 
 `fact_dong_type`은 `(dong_code8, k_value)` 복합키다. 조회할 때 `k_value = 6` 조건을 빼면 행이 중복되거나 사라진다.
 
-### 01b_seed_params.sql
+### init/02_seed_params.sql
 
 시간가치·소득 시나리오·생활비 가정은 CSV 소스가 없어 여기서 직접 넣는다. 값을 바꾸려면 이 파일만 고쳐 다시 실행한다.
 
-`dim_living_cost_assumption`은 **미확정 항목**이다. 생활소비부담지수가 강건 z-score라 금액이 아니고, 지수를 금액으로 환산하는 근거가 아직 없다. 자리표시용 값이라 이걸 쓰는 Q4 결과는 시산으로만 봐야 한다.
+`dim_living_cost_assumption` 은 한동안 미확정이었다. 생활소비부담지수가 강건
+z-score 라 금액이 아니어서 지수를 금액으로 환산할 근거를 만들 수 없었다. 지금은
+환산을 포기하고 **공표 통계 기반 단일 상수**로 확정했다 — 가계동향조사 1인가구
+월평균 소비지출에서 주거·수도·광열과 교통 비중을 뺀 값이다. 통합부담에 주거비와
+교통비가 이미 들어 있어 총액을 그대로 쓰면 이중계상이 된다.
 
-### 02_qc.sql
+**단, 현재 DB 에는 1행만 들어 있다.** 이 파일은 기본·절약형·여유형 3행을 넣도록
+돼 있는데 파일을 고친 뒤 재실행하지 않았다. 민감도 분석을 돌리려면 다시 실행해야
+한다.
+
+### qc/01_qc.sql
 
 적재가 끝났는지가 아니라 **제대로 됐는지**를 본다. 판정 컬럼만 보면 된다.
 
@@ -138,7 +186,7 @@ Workbench를 쓴다면 연결된 탭에서 `File > Open SQL Script`로 열고 �
 
 실측 결과 불일치 10개가 나왔고 차이는 전부 ±1이었다. 표면주거비를 INT로 선언해 소수점이 잘린 탓이며, 값이 촘촘한 구간에서만 순위가 엇갈린다. 산식은 동일하다.
 
-### 02_analysis_queries.sql
+### analysis/01_analysis_queries.sql
 
 | 쿼리 | 내용 | 기법 |
 |---|---|---|
@@ -149,7 +197,7 @@ Workbench를 쓴다면 연결된 탭에서 `File > Open SQL Script`로 열고 �
 | Q5 | 6개 유형 프로파일 | `GROUP BY` + 조건부 집계 |
 | Q6 | 정책·금융상품 조건 매칭 | NULL=무제한 규칙 조건 조인 |
 
-### 04_transport_pass_assumption.sql
+### init/03_transport_pass_assumption.sql
 
 정기권 가정 테이블을 만들고 `fact_dong_burden` 에 컬럼 두 개를 더한다.
 
@@ -179,7 +227,7 @@ Workbench를 쓴다면 연결된 탭에서 `File > Open SQL Script`로 열고 �
 MySQL 은 `ADD COLUMN IF NOT EXISTS` 가 없어 `information_schema` 로 존재를
 확인한 뒤 `PREPARE` 로 실행한다. 여러 번 돌려도 안전하다.
 
-### 05_qc_transport_pass.sql
+### qc/02_qc_transport_pass.sql
 
 정기권 적재 검증 7종. `result` 컬럼이 전부 `OK` 여야 한다.
 
@@ -199,7 +247,7 @@ QC5 가 특히 중요하다. 가정이 섞이면 동 간 비교가 무의미해�
 55,000원을 넘는다는 뜻이고, 곧 **교통비가 지역 간 차이를 만들지 못한다**는
 결론이다. 통근 부담의 격차는 사실상 시간에서 나온다.
 
-### 06_verify_dong.sql
+### qc/03_verify_dong.sql
 
 **화면에 뜬 값이 DB와 맞는지** 한 행정동에 대해 대조한다. 파일 상단
 `@home` / `@work` / `@days` / `@deposit` / `@rent` 만 바꿔 실행한다.
@@ -220,11 +268,15 @@ QC5 가 특히 중요하다. 가정이 섞이면 동 간 비교가 무의미해�
 
 ---
 
-## 서비스용 테이블 2종
+## 서비스용 테이블 2종 (`load/`)
 
-분석 결과가 아니라 **서비스가 화면에서 쓰는 판단**을 담는다. 둘 다 DDL + 시드 + QC 쿼리가 한 파일에 있어서 실행하면 검증까지 된다. FK가 `dim_region(dong_code8)`을 참조하므로 기본 스키마 적재 후에 돌린다.
+분석 결과가 아니라 **서비스가 화면에서 쓰는 판단**을 담는다. 둘 다 DDL + 시드 + QC 쿼리가 한 파일에 있어서 실행하면 검증까지 된다.
 
-### dim_fallback_candidate (16행)
+FK 가 `dim_region(dong_code8)` 을 참조하므로 **`dim_region` 이 채워진 뒤에만**
+실행할 수 있다. `init/` 이 아니라 `load/` 에 있는 이유이고, 컨테이너 초기화
+대상에서 빠지는 이유이기도 하다.
+
+### load/02_fallback_candidate.sql — dim_fallback_candidate (16행)
 
 표면주거비가 산출되지 않은 7개 동을 사용자가 요청했을 때 제시할 인근 행정동이다.
 
@@ -245,7 +297,7 @@ QC5 가 특히 중요하다. 가정이 섞이면 동 간 비교가 무의미해�
 
 `verified_by`를 컬럼으로 둔 이유는 이것이 자동 추출 결과가 아니라 **사람이 지도로 확인한 판단**이기 때문이다.
 
-### dim_dong_reliability (427행)
+### load/01_dong_reliability.sql — dim_dong_reliability (427행)
 
 행정동별 표면주거비 신뢰도 등급이다.
 
@@ -280,7 +332,7 @@ Q2·Q3에서 **"강남 근무자와 여의도 근무자의 추천 상위 10곳 �
 
 ## 읽을 때 주의할 것
 
-**부담유형은 정의가 두 개다.** Q1의 `CASE WHEN rank_gap <= -50`은 이 쿼리에서만 쓰는 임시 구간이라 B가 20개 이상 나온다. 확정 부담유형(A 197 / B 13 / C 13 / D 197)은 `build_total_burden.py`가 계산해 `fact_dong_burden.burden_type_src`에 들어 있다. 화면·발표에는 그쪽을 쓴다.
+**부담유형은 정의가 두 개다.** Q1의 `CASE WHEN rank_gap <= -50`은 이 쿼리에서만 쓰는 임시 구간이라 B가 20개 이상 나온다. 확정 부담유형(A 실질저부담 196 / B 월세착시 14 / C 숨은효율 14 / D 종합고부담 196)은 `build_total_burden.py`가 계산해 `fact_dong_burden.burden_type_src`에 들어 있다. 화면·발표에는 그쪽을 쓴다.
 
 **유형은 6개이고 7개 동은 유형이 없다.** `fact_dong_type`은 427행 전체를 담되 데이터가 없는 7개 동은 `type_name`이 NULL이고 `flag_insufficient=1`이다. 빼버리면 서비스에서 "데이터 부족"인지 "코드 오류"인지 구분할 수 없다. 추천 후보에서는 제외한다.
 
@@ -289,11 +341,14 @@ Q2·Q3에서 **"강남 근무자와 여의도 근무자의 추천 상위 10곳 �
 **업무지구별 거주동 수가 다르다.** 도심·강남·여의도는 427개 전부에서 경로가 있지만 마곡·강서는 274개뿐이다. 80% 컷 기반이라 "그 지구로 출근하는 사람이 적은 동"이 빠진 것인데, 결과를 쓸 때 "마곡 근무자 추천 후보는 274개 동 중에서 뽑힌 것"이라고 밝혀야 한다.
 
 **한 적재본에 정기권 가정이 섞이면 안 된다.** `fact_dong_burden.transport_pass_code`
-가 두 종류 이상이면 동 간 비교가 무의미해진다. `05_qc_transport_pass.sql` QC5 가
+가 두 종류 이상이면 동 간 비교가 무의미해진다. `qc/02_qc_transport_pass.sql` QC5 가
 이걸 막는다. 요금 기준을 바꿀 때는 `build_total_burden.py` 를 `--dry-run` 으로
 먼저 돌려 부담유형 분포가 얼마나 흔들리는지 보고, 전체를 다시 산출해 적재한다.
 
-**Q4는 아직 발표에 쓸 수 없다.** 생활비 환산 가정이 자리표시용이라 350만 원 시나리오에서 415개 동 전부가 저축률 20%를 달성한다고 나온다. 변별력이 없다.
+**Q4 의 생활비 가정은 확정됐다.** 한때 자리표시용 값이라 350만 원 시나리오에서
+415개 동 전부가 저축률 20%를 달성해 변별력이 없었다. 지금은 공표 통계 기반
+단일 상수로 바뀌었다(`init/02_seed_params.sql` 참고). 다만 민감도 3안 중
+현재 DB 에는 기본값 1행만 들어 있어, 3안 비교를 하려면 시드를 다시 실행해야 한다.
 
 **`fact_dong_burden.oneway_commute_min`은 근무지와 무관하다.** 거주동 거주자의 모든 목적지를 가중평균한 값이라 "이 동에서 강남까지 몇 분"이 아니다. 근무지 기준 값이 필요하면 `fact_commute_route`(거주동 × 근무동)를 써야 한다.
 
@@ -306,12 +361,13 @@ Q2·Q3에서 **"강남 근무자와 여의도 근무자의 추천 상위 10곳 �
 
 | 파일 | 역할 | 실행 시점 |
 |---|---|---|
-| `01_schema.sql` | 테이블 13 + 뷰 2 생성 | 최초 1회, 스키마 변경 시 |
-| `01b_seed_params.sql` | 파라미터 초기값 | 스키마 직후, 가정 변경 시 |
-| `02_qc.sql` | 적재 검증 7종 | 적재 직후 매번 |
-| `02_analysis_queries.sql` | 분석 쿼리 6종 | QC 통과 후 |
-| `04_transport_pass_assumption.sql` | 정기권 가정 테이블 + 컬럼 확장 | 최초 1회, 요금 제도 변경 시 |
-| `05_qc_transport_pass.sql` | 정기권 검증 7종 | 정기권 적재 직후 |
-| `06_verify_dong.sql` | 행정동 1곳 화면값 대조 | 값이 의심스러울 때 |
-| `dim_fallback_candidate.sql` | 결측 동 인근 후보 16행 | 최초 1회, 후보 변경 시 |
-| `dim_dong_reliability.sql` | 신뢰도 등급 427행 | 임계값 변경 시 재생성 후 |
+| `init/01_schema.sql` | 테이블 14 + 뷰 2 생성 | 최초 1회, 스키마 변경 시 |
+| `init/02_seed_params.sql` | 파라미터 초기값 | 스키마 직후, 가정 변경 시 |
+| `init/03_transport_pass_assumption.sql` | 정기권 가정 테이블 + 컬럼 확장 | 최초 1회, 요금 제도 변경 시 |
+| `load/01_dong_reliability.sql` | 행정동 신뢰도 등급 427행 | 적재 후, 임계값 변경 시 |
+| `load/02_fallback_candidate.sql` | 결측 동 인근 후보 16행 | 적재 후, 후보 변경 시 |
+| `qc/01_qc.sql` | 적재 검증 7종 | 적재 직후 매번 |
+| `qc/02_qc_transport_pass.sql` | 정기권 검증 7종 | 정기권 적재 직후 |
+| `qc/03_verify_dong.sql` | 행정동 1곳 화면값 대조 | 값이 의심스러울 때 |
+| `analysis/01_analysis_queries.sql` | 분석 쿼리 6종 | QC 통과 후 |
+| `analysis/02_case_recompute.sql` | 케이스 재계산 | 필요할 때 |

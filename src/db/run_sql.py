@@ -5,8 +5,8 @@ PowerShell 은 `<` 리다이렉션을 지원하지 않고 mysql 클라이언트�
 있어서, .env 접속 정보로 직접 SQL 파일을 실행한다.
 
 사용:
-    python src/db/run_sql.py sql/04_transport_pass_assumption.sql
-    python src/db/run_sql.py sql/05_qc_transport_pass.sql
+    python src/db/run_sql.py sql/init/03_transport_pass_assumption.sql
+    python src/db/run_sql.py sql/qc/02_qc_transport_pass.sql
 """
 from __future__ import annotations
 import os, sys, re

@@ -1,4 +1,4 @@
-# src/analysis/ — 지표를 조합해 판단을 만드는 단계
+﻿# src/analysis/ — 지표를 조합해 판단을 만드는 단계
 
 ## 왜 필요했나
 
@@ -340,7 +340,7 @@ TH_SMALL_TX       = 30      소표본 기준
 SQL을 직접 짜지 않고 스크립트가 생성하게 한 이유는 **427개 동 코드를 손으로 넣을 수 없기** 때문이다. 임계값 재조정이 쉬워지는 것은 부수 효과다.
 
 **입력** `행정동_소스별_커버리지.csv`, `도로명근사_정확도_동별.csv`, `주거통근_통합부담_행정동별.csv`, `표면주거비_배정방식_동별_보정.csv`
-**출력** `docs/행정동_신뢰도.csv`, `sql/dim_dong_reliability.sql`
+**출력** `docs/행정동_신뢰도.csv`, `sql/load/01_dong_reliability.sql`
 
 ---
 
@@ -468,7 +468,7 @@ python src/analysis/build_crowding_display.py              # 재계산
 | `dong_typology_final` | FuzzyCMeans k=6, 블록균형 50:50 | `dong_typology_final.csv` 427행 |
 | `build_crowding_display.py` | 혼잡도 재계산 (0 제외 + 커버리지 게이트) | `crowding_*_display.csv` |
 | `verify_road_accuracy.py` | 도로명 배정 정확도 역산 | `docs/도로명근사_정확도_동별.csv` |
-| `build_dong_reliability.py` | 판정 4종 → 신뢰도 등급 | `docs/행정동_신뢰도.csv`, `sql/dim_dong_reliability.sql` |
+| `build_dong_reliability.py` | 판정 4종 → 신뢰도 등급 | `docs/행정동_신뢰도.csv`, `sql/load/01_dong_reliability.sql` |
 | `extract_adjacent_by_bjd.py` | 법정동 공유 기반 인접 후보 | `docs/fallback_후보_법정동기반.csv` 24행 |
 
 ## 함께 볼 문서

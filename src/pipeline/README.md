@@ -1,4 +1,4 @@
-# src/pipeline/ — 산출물을 다시 만드는 단계
+﻿# src/pipeline/ — 산출물을 다시 만드는 단계
 
 ## 왜 필요했나
 
@@ -186,7 +186,7 @@ src/analysis/build_total_burden.py     통합부담 재산출
         ↓
 src/db/load_to_db.py                   MySQL 재적재
         ↓
-sql/02_qc.sql, sql/05_qc_transport_pass.sql   검증
+sql/qc/01_qc.sql, sql/qc/02_qc_transport_pass.sql   검증
 ```
 
 `build_total_burden.py` 는 `--dry-run` 으로 먼저 돌려 부담유형 A/B/C/D 분포가

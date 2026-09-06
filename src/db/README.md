@@ -1,4 +1,4 @@
-# src/db/ — CSV를 MySQL로 옮기고, 다시 꺼내는 단계
+﻿# src/db/ — CSV를 MySQL로 옮기고, 다시 꺼내는 단계
 
 ## 왜 필요했나
 
@@ -21,7 +21,7 @@
 
 `to_sql(if_exists="replace")`를 쓰면 타입·기본키·인덱스·주석이 전부 날아가고 **행정동코드가 BIGINT로 바뀐다.** 선행 0이 사라지면 결합키가 조용히 깨진다.
 
-그래서 스키마는 `sql/01_schema.sql`이 소유하고, 이 폴더는 `if_exists="append"`만 쓴다.
+그래서 스키마는 `sql/init/01_schema.sql`이 소유하고, 이 폴더는 `if_exists="append"`만 쓴다.
 
 ### ② 코드 컬럼은 무조건 문자열로 읽는다
 
@@ -105,8 +105,8 @@ MySQL CLI 를 쓰면 되지 않느냐 싶지만 두 가지가 걸렸다. **Power
 볼 수 있다.
 
 ```
-python src/db/run_sql.py sql/04_transport_pass_assumption.sql
-python src/db/run_sql.py sql/05_qc_transport_pass.sql
+python src/db/run_sql.py sql/init/03_transport_pass_assumption.sql
+python src/db/run_sql.py sql/qc/02_qc_transport_pass.sql
 ```
 
 **입력** SQL 파일, `.env`
@@ -114,7 +114,7 @@ python src/db/run_sql.py sql/05_qc_transport_pass.sql
 
 ### load_to_db.py
 
-CSV 8종을 읽어 MySQL 테이블 9개에 넣는다. FK 의존 순서대로 돌고, 삭제는 역순이다.
+CSV를 읽어 MySQL 테이블 12개에 넣는다. FK 의존 순서대로 돌고, 삭제는 역순이다.
 
 접속 정보는 `.env`에서 읽는다. 비밀번호를 코드에 넣지 않기 위해서다(`.gitignore` 필수).
 
@@ -123,7 +123,7 @@ CSV 8종을 읽어 MySQL 테이블 9개에 넣는다. FK 의존 순서대로 돌
 - **`fact_dong_burden`** — 통합부담 + 업무중심성(주야간 인구비) + 유형화 결과(청년1인세대비율)를 코드8 기준으로 결합
 - **`fact_commute_od`** — 전체 OD(164,860행)와 80% 컷(30,839행)을 한 테이블에 담고 `is_top80` 플래그로 구분. 80% 컷의 `최종_가중치`는 대표 통근시간 산출 근거이자 Tmap 호출 대상이라 재현성을 위해 보관해야 한다. 교체가 아니라 역할 분담이다
 
-파이썬이 계산한 순위와 부담유형을 `rank_housing_src` / `rank_burden_src` / `burden_type_src`로 같이 넣는다. **적재 과정에서 값이 뒤틀리지 않았는지 SQL로 대조하기 위한 것**이다(`sql/02_qc.sql` QC5).
+파이썬이 계산한 순위와 부담유형을 `rank_housing_src` / `rank_burden_src` / `burden_type_src`로 같이 넣는다. **적재 과정에서 값이 뒤틀리지 않았는지 SQL로 대조하기 위한 것**이다(`sql/qc/01_qc.sql` QC5).
 
 **입력** 아래 8개 파일
 
@@ -137,6 +137,8 @@ CSV 8종을 읽어 MySQL 테이블 9개에 넣는다. FK 의존 순서대로 돌
 | `commute_routes_analysis_ready.csv` | `fact_commute_route` |
 | `표면주거비_거래단위.csv` | `fact_rent_transaction` |
 | `정기권_가정.csv` | `dim_transport_pass_assumption` |
+
+정책 조건표(`dim_policy`, 12행)도 `LOAD_ORDER`에 포함된다.
 
 **출력** MySQL `multicam` 스키마, `data/quarantine/*_orphan.csv`
 
@@ -152,7 +154,9 @@ DB 가 서로 다른 요금 기준을 보게 되므로 원천을 한 곳으로 �
 
 `dim_business_district`는 CSV에 없다. `업무지구_정의.csv` 40행을 지구명으로 group by 해서 9행을 만들고, `district_id`가 AUTO_INCREMENT라 DB에서 다시 읽어 bridge에 매핑한다.
 
-서비스용 테이블 두 개(`dim_fallback_candidate`, `dim_dong_reliability`)는 이 스크립트가 넣지 않는다. CSV가 아니라 SQL 파일에서 직접 적재한다. `sql/README.md` 참고.
+서비스용 테이블 두 개(`dim_dong_reliability`, `dim_fallback_candidate`)는 이 스크립트가 넣지 않는다. CSV가 아니라 `sql/load/` 의 SQL 파일이 DDL과 데이터를 함께 갖고 있다.
+
+**다만 이 스크립트보다 먼저 돌릴 수 없다.** 두 테이블의 FK가 `dim_region(dong_code8)` 을 참조하는데 `dim_region` 은 여기서 채우기 때문이다. `sql/init/` 과 `sql/load/` 가 폴더로 갈려 있는 이유이며, 자세한 것은 `sql/README.md` 를 참고한다.
 
 ### check_quarantine.py
 
@@ -286,9 +290,15 @@ python src/db/query_dong.py 마장동        # 조회 시험
 
 ## 적재 실적
 
+스키마에 정의된 테이블은 **17개 + 뷰 2개**이고, 채우는 주체가 셋으로 나뉜다.
+한 곳만 세면 숫자가 맞지 않는다.
+
+**① `load_to_db.py` — CSV 적재 (12개)**
+
 | 테이블 | 적재 | 격리 |
 |---|---|---|
 | `dim_region` | 427 | — |
+| `map_region_legacy` | 11 | — |
 | `dim_business_district` | 9 | — |
 | `bridge_district_dong` | 40 | — |
 | `fact_dong_burden` | 420 | — |
@@ -297,11 +307,43 @@ python src/db/query_dong.py 마장동        # 조회 시험
 | `fact_commute_od` | 164,032 | 828 |
 | `fact_commute_route` | 30,636 | 203 |
 | `fact_rent_transaction` | 577,745 | 16 |
-| `dim_fallback_candidate` | 16 | — |
-| `dim_dong_reliability` | 427 | — |
 | `dim_transport_pass_assumption` | 5 | — |
+| `dim_policy` | 12 | — |
 
-QC 7종 전항목 통과. 정기권 QC(`sql/05_qc_transport_pass.sql`) 7종도 통과했고,
+**② `sql/init/02_seed_params.sql` — SQL 시드 (3개)**
+
+CSV 원천이 없는 가정값이다. 값을 바꾸려면 그 파일을 고쳐 다시 실행한다.
+
+| 테이블 | 적재 |
+|---|---|
+| `dim_time_value` | 1 |
+| `dim_income_scenario` | 5 |
+| `dim_living_cost_assumption` | 1 (시드 파일은 3행) |
+
+**③ `sql/load/` — SQL 파일 자체 INSERT (2개)**
+
+| 테이블 | 적재 |
+|---|---|
+| `dim_dong_reliability` | 427 |
+| `dim_fallback_candidate` | 16 |
+
+스키마의 17개 테이블이 모두 채워진다.
+
+**폐지 행정동 매핑은 CSV 9행이 DB 11행이 된다.** `현행코드8` 이 분동 케이스에서
+세미콜론으로 여러 코드를 담기 때문이다.
+
+```
+11230536 용신동  ->  11230515;11230533   (신설동 + 용두동)
+```
+
+PK 가 `(legacy_code8, current_code8)` 복합키라 코드마다 한 행으로 펼쳐야 한다.
+그대로 넣으면 `CHAR(8)` 컬럼에 17글자가 들어간다. 1:N 분동 2건(용신동·상일동)이
+각각 2행이 되어 9 + 2 = 11행이다.
+
+`legacy_code8` 은 기준표 대조에서 제외한다. **폐지된 코드가 현행 기준표에 없는
+것은 정상**이기 때문이다. 격리 검사는 `current_code8` 만 한다.
+
+QC 7종 전항목 통과. 정기권 QC(`sql/qc/02_qc_transport_pass.sql`) 7종도 통과했고,
 420개 동 **전부가 정기권 상한 초과**로 나왔다. 실지출이 모든 동에서 55,000원을
 넘는다는 뜻이라, 교통비는 지역 간 차이를 만들지 못한다. 순위 재현 불일치 10개는 표면주거비 INT 반올림 차이로 diff가 전부 ±1이었다.
 

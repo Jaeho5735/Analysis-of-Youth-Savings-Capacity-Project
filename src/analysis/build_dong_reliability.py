@@ -12,7 +12,7 @@
 
 산출
     docs/행정동_신뢰도.csv
-    sql/dim_dong_reliability.sql   (DDL + 시드 + QC)
+    sql/load/01_dong_reliability.sql   (DDL + 시드 + QC)
 
 사용법
     python src/analysis/build_dong_reliability.py

@@ -1,0 +1,21 @@
+# 이미지에 넣지 않을 것
+
+.venv/
+__pycache__/
+*.pyc
+
+.git/
+.gitignore
+
+# 원본 데이터는 용량이 커서 이미지에 넣지 않는다.
+# 적재는 컨테이너 밖에서 돌리거나 볼륨으로 마운트한다.
+data/
+
+notebooks/
+docs/
+
+.env
+requirements_full.txt
+requirements_scan.txt
+
+web/uploads/

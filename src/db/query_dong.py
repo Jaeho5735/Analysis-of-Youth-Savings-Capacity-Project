@@ -91,7 +91,10 @@ def env_check():
 # ─────────────────────────────────────────────────────────────
 COLS = {
     "region": {"table": "dim_region", "code": "dong_code8",
-               "name": "dong_name", "gu": "sigungu_name"},
+               "name": "dong_name", "gu": "sigungu_name",
+               # 권역(도심/동남/동북/서남/서북). 보증금 월환산 전환율이
+               # 권역별로 달라서 화면단이 이 값을 쓴다.
+               "region": "region_group"},
     "burden": {"table": "fact_dong_burden", "code": "dong_code8",
                "housing": "surface_housing_cost",
                "fare_actual": "monthly_transport_cost",   # 실지출
@@ -125,6 +128,41 @@ WORK_DAYS_PER_MONTH = 21
 # 정기권 월 상한. DB 의 dim_transport_pass_assumption 기본 가정(youth_regular)과
 # 같은 값이어야 한다. 여기만 옛 값이면 조회 결과가 화면·CSV 와 어긋난다.
 TRANSIT_PASS_CAP = 55000
+
+# ─────────────────────────────────────────────────────────────
+# 정책 매칭
+#   dim_policy 는 12행뿐이라 조건을 SQL WHERE 로 걸지 않고 전건을 읽어
+#   파이썬에서 판정한다. 이유 세 가지.
+#     1) 파라미터(나이·소득·월세)를 한 벌만 두면 "통과 목록"과
+#        "탈락 사유"가 서로 어긋날 수 없다. SQL 로 옮기면 Q6/Q6c 두 곳에
+#        같은 숫자를 각각 적어야 해서 한쪽만 고치는 사고가 난다.
+#     2) 탈락 사유를 여러 개 모을 수 있다. SQL CASE WHEN 은 순차 평가라
+#        나이와 소득에 동시에 걸려도 먼저 걸린 하나만 보여준다.
+#     3) 12행 전건 로드는 필터링보다 비싸지 않다.
+#   산식 출처: sql/analysis/01_analysis_queries.sql 의 Q6 / Q6b / Q6c
+# ─────────────────────────────────────────────────────────────
+
+# 정책 정보의 기준 시점. 제도는 바뀐다. 실제로 기후동행카드 30일권은
+# 2026-09 에 종료되고 모두의카드(기후동행패스)로 일원화됐다.
+# 실시간 조회를 붙이지 않기로 한 대신, 언제 기준인지를 화면에 밝힌다.
+POLICY_AS_OF = "2026-08-05"
+
+# category='info' 는 지원사업이 아니라 제도 안내다(전세보증금반환보증).
+# 조건도 혜택금액도 없어 무조건 통과하므로, 지원금과 같은 칸에 나열하면
+# "받을 수 있는 돈"으로 오해된다. 화면에서 구역을 나누라고 표시해 둔다.
+POLICY_INFO_CATEGORY = "info"
+
+# 부담요인 태그 이름. 정책이 0건인 태그는 DB 에서 이름을 못 가져오므로
+# 그때만 쓰는 표시용 대비값이다. 실제 이름은 dim_policy.burden_tag_name 이
+# 우선한다. 태그를 늘리거나 이름을 바꾸면 여기도 같이 고쳐야 한다.
+BURDEN_TAG_NAMES = {
+    1: "높은 월세",
+    2: "높은 보증금",
+    3: "높은 통근교통비",
+    4: "낮은 현금흐름",
+    5: "자산형성",
+    6: "보증금 반환 위험",
+}
 
 REASON_TEXT = {
     "no_data": "대단지 아파트 위주로 비아파트 임차 거래가 거의 없어 주거비를 산출하지 못했습니다.",
@@ -193,6 +231,7 @@ def _burden_sql():
         SELECT r.`{r['code']}`  AS code,
                r.`{r['name']}`  AS name,
                r.`{r['gu']}`    AS gu,
+               r.`{r['region']}` AS region_group,
                rel.status       AS status,
                rel.reason       AS reason,
                rel.tx_count     AS tx_count,
@@ -222,6 +261,7 @@ def _route_sql():
         SELECT r.`{r['code']}`  AS code,
                r.`{r['name']}`  AS name,
                r.`{r['gu']}`    AS gu,
+               r.`{r['region']}` AS region_group,
                rel.status       AS status,
                rel.reason       AS reason,
                rel.tx_count     AS tx_count,
@@ -307,6 +347,224 @@ def _fallback_sql():
     """
 
 
+# ═════════════════════════════════════════════════════════════
+# 정책 매칭
+# ═════════════════════════════════════════════════════════════
+
+# 신설 3컬럼(apply_type·apply_period_note·as_of)은 마이그레이션 이후에만
+# 존재한다. 없는 상태에서도 조회가 죽지 않도록 두 벌을 두고 순서대로 시도한다.
+_POLICY_COLS_BASE = """burden_tag, burden_tag_name, policy_name, provider,
+               category, age_min, age_max, income_max, rent_max,
+               benefit_amount, benefit_unit, source_url"""
+_POLICY_COLS_FULL = _POLICY_COLS_BASE + """,
+               apply_type, apply_period_note, as_of"""
+
+
+def _policy_sql(full=True):
+    """dim_policy 전건. 조건 필터는 파이썬에서 건다(위 주석 참고)."""
+    cols = _POLICY_COLS_FULL if full else _POLICY_COLS_BASE
+    return f"""
+        SELECT {cols}
+        FROM dim_policy
+        ORDER BY burden_tag, policy_name
+    """
+
+
+def _benefit_text(row):
+    """지원내용 문구. Q6 의 CASE benefit_unit 과 같은 규칙이다."""
+    amt = _num(row.get("benefit_amount"))
+    unit = row.get("benefit_unit")
+    if amt is None:
+        return "금액 정보 없음"
+    if unit == "month":
+        return f"월 {amt:,}원"
+    if unit == "once":
+        return f"{amt:,}원 (1회)"
+    if unit == "limit":
+        return f"한도 {amt:,}원"
+    return "금액 정보 없음"
+
+
+def _judge_policy(row, age, income, rent):
+    """정책 한 건이 사용자 조건에 맞는지 본다.
+
+    NULL 은 "제한 없음"이다. 0 으로 채웠다면 "0원 이하만 가능"으로 읽혀
+    아무도 해당되지 않았을 것이다(Q6 주석과 같은 판단).
+
+    사용자 값이 None 이면 그 조건은 검사하지 않고 unchecked 에 남긴다.
+    모르는 값을 통과로 처리하면 "받을 수 있다"고 잘못 안내하게 된다.
+
+    돌려주는 것: (통과여부, 탈락사유 목록, 미확인조건 목록)
+    """
+    reasons, unchecked = [], []
+
+    amin, amax = _num(row.get("age_min")), _num(row.get("age_max"))
+    imax, rmax = _num(row.get("income_max")), _num(row.get("rent_max"))
+
+    if amin is not None or amax is not None:
+        if age is None:
+            unchecked.append("나이")
+        else:
+            if amin is not None and age < amin:
+                reasons.append(f"만 {amin}세 이상 대상 / 입력 {age}세")
+            if amax is not None and age > amax:
+                reasons.append(f"만 {amax}세 이하 대상 / 입력 {age}세")
+
+    if imax is not None:
+        if income is None:
+            unchecked.append("소득")
+        elif income > imax:
+            reasons.append(f"월소득 {imax:,}원 이하 대상 / 입력 {income:,}원")
+
+    if rmax is not None:
+        if rent is None:
+            unchecked.append("월세")
+        elif rent > rmax:
+            reasons.append(f"월세 {rmax:,}원 이하 대상 / 입력 {rent:,}원")
+
+    return (not reasons), reasons, unchecked
+
+
+def _policy_view(row):
+    """화면에 넘길 형태로 정리한다."""
+    amin, amax = _num(row.get("age_min")), _num(row.get("age_max"))
+    imax = _num(row.get("income_max"))
+    tag = _num(row.get("burden_tag"))
+    return {
+        "burden_tag": tag,
+        "burden_tag_name": row.get("burden_tag_name") or BURDEN_TAG_NAMES.get(tag),
+        "policy_name": row.get("policy_name"),
+        "provider": row.get("provider"),
+        "category": row.get("category"),
+        "benefit_text": _benefit_text(row),
+        "benefit_amount": _num(row.get("benefit_amount")),
+        "benefit_unit": row.get("benefit_unit"),
+        "age_text": f"{amin if amin is not None else '-'} ~ {amax if amax is not None else '-'}",
+        "income_text": "제한 없음" if imax is None else f"월 {imax:,}원 이하",
+        "source_url": row.get("source_url"),
+        # 지원사업이 아니라 제도 안내. 화면에서 지원금과 구역을 나눈다.
+        "is_info": row.get("category") == POLICY_INFO_CATEGORY,
+        # 신설 컬럼이 없으면 None. 기간제 정책을 상시처럼 안내하지 않기 위함.
+        "apply_type": row.get("apply_type"),
+        "apply_period_note": row.get("apply_period_note"),
+        "as_of": str(row["as_of"]) if row.get("as_of") else None,
+    }
+
+
+def get_policies(age=None, income=None, rent=None, burden_tags=None, conn=None):
+    """사용자 조건에 맞는 정책을 찾는다. Q6 + Q6c 를 한 벌로 합친 것.
+
+        age     만 나이
+        income  월 세후소득(원)
+        rent    월세(원)
+        burden_tags  보고 싶은 부담요인 태그 목록. None 이면 전부.
+
+    돌려주는 것
+        matched   통과한 정책(태그 순)
+        excluded  탈락한 정책 + 탈락 사유 목록
+        by_tag    태그별로 묶은 통과 정책
+        tags_no_policy  요청한 태그 중 통과 정책이 하나도 없는 것
+
+    탈락 사유를 함께 돌려주는 이유는 빈 화면을 막기 위해서가 아니다.
+    실측하면 29세·월280만·월세75만 기준으로 12건 중 9건이 통과한다.
+    사유가 필요한 건 "저 정책은 왜 나한테 안 뜨나"에 답하기 위해서다.
+    """
+    own = conn is None
+    conn = conn or connect()
+    try:
+        with conn.cursor() as cur:
+            try:
+                cur.execute(_policy_sql(full=True))
+            except Exception:
+                # 신설 컬럼이 아직 없는 DB. 기본 컬럼만으로 계속 간다.
+                cur.execute(_policy_sql(full=False))
+            rows = cur.fetchall()
+    except Exception as e:
+        # 컨테이너 DB 는 스키마만 있고 적재를 하지 않았다. 정책이 없다고
+        # 조회 전체를 실패시키지 말고 사유를 남긴다.
+        return {"as_of": POLICY_AS_OF, "matched": [], "excluded": [],
+                "by_tag": {}, "tags_no_policy": [], "unavailable": str(e)}
+    finally:
+        if own:
+            conn.close()
+
+    want = {int(t) for t in burden_tags} if burden_tags else None
+
+    matched, excluded = [], []
+    for row in rows:
+        tag = _num(row.get("burden_tag"))
+        if want is not None and tag not in want:
+            continue
+        ok, reasons, unchecked = _judge_policy(row, age, income, rent)
+        view = _policy_view(row)
+        if unchecked:
+            view["unchecked"] = unchecked
+        if ok:
+            matched.append(view)
+        else:
+            view["reasons"] = reasons
+            excluded.append(view)
+
+    by_tag = {}
+    for v in matched:
+        by_tag.setdefault(v["burden_tag"], {
+            "burden_tag_name": v["burden_tag_name"], "policies": []
+        })["policies"].append(v)
+
+    tags_no_policy = []
+    for t in sorted(want or BURDEN_TAG_NAMES):
+        if t not in by_tag:
+            tags_no_policy.append(
+                {"burden_tag": t, "burden_tag_name": BURDEN_TAG_NAMES.get(t)})
+
+    return {
+        "as_of": POLICY_AS_OF,
+        "params": {"age": age, "income": income, "rent": rent},
+        "matched": matched,
+        "excluded": excluded,
+        "by_tag": by_tag,
+        "tags_no_policy": tags_no_policy,
+    }
+
+
+def policy_coverage(conn=None):
+    """부담요인별 정책 보유 현황. Q6b 그대로다.
+
+    정책 수가 얇은 태그를 화면에서 숨기지 않고 밝히기 위한 것이다.
+    실제로 태그3(높은 통근교통비)은 1건뿐인데, 서울 청년 통근비를
+    줄여주는 제도가 그것 말고 거의 없어서 생긴 결과다. 억지로 채우면
+    "탐색 우선순위이지 자격 판정이 아니다"라는 원칙과 어긋난다.
+    """
+    own = conn is None
+    conn = conn or connect()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT burden_tag, burden_tag_name, COUNT(*) AS n, "
+                "       GROUP_CONCAT(policy_name ORDER BY policy_name "
+                "                    SEPARATOR ' / ') AS policies "
+                "FROM dim_policy GROUP BY burden_tag, burden_tag_name "
+                "ORDER BY burden_tag"
+            )
+            rows = cur.fetchall()
+    except Exception:
+        return []
+    finally:
+        if own:
+            conn.close()
+
+    out = []
+    for row in rows:
+        tag = _num(row["burden_tag"])
+        out.append({
+            "burden_tag": tag,
+            "burden_tag_name": row.get("burden_tag_name") or BURDEN_TAG_NAMES.get(tag),
+            "count": _num(row["n"]),
+            "policies": (row.get("policies") or "").split(" / "),
+        })
+    return out
+
+
 def get_dong(dong_code, conn=None, work_code=DEFAULT_WORK_DONG):
     """행정동코드 하나를 조회해 응답 계약 형태로 돌려준다.
 
@@ -326,7 +584,8 @@ def get_dong(dong_code, conn=None, work_code=DEFAULT_WORK_DONG):
             if not row:
                 return {"status": "not_found", "dong": {"code": dong_code}}
 
-            dong = {"code": row["code"], "name": row["name"], "gu": row["gu"]}
+            dong = {"code": row["code"], "name": row["name"], "gu": row["gu"],
+                    "region_group": row.get("region_group")}
             status = row["status"] or "ok"
 
             if status == "no_data":
@@ -645,6 +904,17 @@ if __name__ == "__main__":
         print(f"{len(rows)}건")
         for row in rows[:50]:
             print(f"  {row['code']} {row['gu']} {row['name']}")
+    elif "--policy" in sys.argv:
+        i = sys.argv.index("--policy")
+        rest = sys.argv[i + 1:]
+        def _arg(n):
+            return int(rest[n]) if len(rest) > n and rest[n].isdigit() else None
+        out = get_policies(age=_arg(0), income=_arg(1), rent=_arg(2))
+        print(json.dumps(out, ensure_ascii=False, indent=2, default=str))
+    elif "--policy-coverage" in sys.argv:
+        for row in policy_coverage():
+            print(f"  {row['burden_tag']} {row['burden_tag_name']:12s} "
+                  f"{row['count']}건  {' / '.join(row['policies'])}")
     elif len(sys.argv) > 1:
         key = sys.argv[1]
         out = get_dong(key) if key.isdigit() else get_dong_by_name(key)

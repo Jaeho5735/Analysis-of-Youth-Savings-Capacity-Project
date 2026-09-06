@@ -1,0 +1,73 @@
+# LOCA - 재현 환경
+#
+#   docker compose up -d --build
+#
+# db  : MySQL 8.0. sql/init/ 을 자동 실행해 스키마 17테이블 + 뷰 2개를 만든다.
+# web : Flask 서비스. db 가 준비된 뒤에 뜬다.
+#
+# 데이터 적재는 여기 포함하지 않는다. 원본 CSV 가 저장소에 없고,
+# 컨테이너 기동에 수십 분이 걸리는 구조는 재현 환경으로 적합하지 않다.
+# 적재는 컨테이너가 뜬 뒤 별도로 돌린다(README 3~4단계).
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: loca-db
+    restart: unless-stopped
+    environment:
+      # MYSQL_USER 는 지정하지 않는다. root 는 이미 존재하므로
+      # 같은 이름으로 생성하려 하면 기동에 실패한다.
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DB}
+      TZ: Asia/Seoul
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_0900_ai_ci
+    ports:
+      # 로컬에 이미 MySQL 이 3306 을 쓰고 있어 3307 로 내보낸다.
+      # 호스트에서 접속: mysql -h 127.0.0.1 -P 3307 -u root -p
+      - "3307:3306"
+    volumes:
+      - loca_db_data:/var/lib/mysql
+      # 최초 기동 시 1회만 실행된다. 파일명 순서가 곧 실행 순서다.
+      #   01_schema -> 02_seed_params -> 03_transport_pass_assumption
+      # load/ qc/ analysis/ 는 넣지 않는다. load/ 는 dim_region 적재를
+      # 전제하고, qc/ analysis/ 는 데이터가 있어야 의미가 있다.
+      - ./sql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p${MYSQL_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  web:
+    build: .
+    container_name: loca-web
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # .env 의 MYSQL_HOST=localhost 를 덮어쓴다.
+      # 컨테이너 안에서 localhost 는 자기 자신이라 DB 에 닿지 않는다.
+      MYSQL_HOST: db
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DB: ${MYSQL_DB}
+      # app.run 의 기본 바인딩은 127.0.0.1 이라 컨테이너 밖에서 닿지 않는다.
+      FLASK_HOST: 0.0.0.0
+      FLASK_PORT: 5000
+      KAKAO_REST_API_KEY: ${KAKAO_REST_API_KEY:-}
+      TMAP_APP_KEY: ${TMAP_APP_KEY:-}
+      TZ: Asia/Seoul
+    ports:
+      - "5000:5000"
+    volumes:
+      # 코드를 마운트해 재빌드 없이 수정이 반영되게 한다.
+      - ./web:/app/web
+      - ./src:/app/src
+
+volumes:
+  loca_db_data:
