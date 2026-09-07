@@ -1023,11 +1023,17 @@ def _support_items(base_col=None, age=None, deposit=None, rent=None):
     items = []
     for p in sorted(matched, key=key):
         name = p.get("policy_name") or ""
+        # 조회 계층은 확인하지 못한 조건을 unchecked 로 남긴다.
+        # 2페이지 폼에 소득 칸이 없어 소득은 늘 미확인이다.
+        # 이걸 버리면 월소득 128만원 이하 대상 정책이 월 280만원 버는
+        # 사용자에게 아무 표시 없이 뜬다. 화면까지 그대로 전달한다.
+        unchecked = p.get("unchecked") or []
         items.append({
             "label": _wrap_support_label(name),
             "icon": _SUPPORT_ICONS.get(p.get("category"), _SUPPORT_ICON_DEFAULT),
             # 시안은 전부 "#" 이라 눌러도 아무 일이 없었다. 공식 페이지로 보낸다.
             "href": p.get("source_url") or "#",
+            "note": ("·".join(unchecked) + " 조건 확인 필요") if unchecked else "",
         })
     return items, res.get("as_of")
 
