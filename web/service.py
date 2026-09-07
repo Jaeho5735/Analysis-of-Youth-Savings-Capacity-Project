@@ -981,7 +981,12 @@ def _support_rank(base_col, deposit=None, rent=None):
         score[3] += 4
 
     # 보증금 월환산이 월세보다 크면 보증금 쪽 부담이 실질적으로 더 크다
-    dep_monthly = _deposit_monthly(deposit)[0]
+    # 권역을 넘겨야 화면에 표시되는 월환산액과 같은 전환율을 쓴다.
+    # 안 넘기면 항상 전체 중앙값 5.9% 가 적용돼, 화면은 "월세가 더 크다"인데
+    # 순위는 "보증금이 더 크다"로 판단하는 상태가 된다.
+    dep_monthly = _deposit_monthly(
+        deposit,
+        {"dong": {"region_group": base_col.get("region_group")}})[0]
     mrent = (_num_only(rent, 0) or 0) * 10_000
     if dep_monthly and mrent and dep_monthly > mrent:
         score[2] += 3
@@ -1090,6 +1095,9 @@ def _col_of(place, work_code, deposit=None, rent=None, work_days=None,
         "type": (t.get("dong_type") or "").strip(),
         "housing": housing, "fare": fare, "time_value": time_value,
         "commute_min": minutes, "transfer": b.get("transfer"),
+        # 보증금 월환산 전환율이 권역별이라 여기서 함께 내보낸다.
+        # 이게 없으면 _support_rank 가 권역을 몰라 전체 중앙값으로 계산한다.
+        "region_group": (t.get("dong") or {}).get("region_group"),
         "total": housing + fare + time_value,
     }
 
@@ -1288,10 +1296,14 @@ _BUS_COLOR = [("간선", "#3D5BAB"), ("지선", "#5BB025"), ("광역", "#E60012"
 _WALK_COLOR = "#b9c6c2"
 
 # 자료가 영문(WALK/BUS/SUBWAY)일 수도, 한글일 수도 있어 양쪽을 모두 받는다.
-_MODE_KO = {"WALK": "도보", "도보": "도보", "BUS": "버스", "버스": "버스",
-            "SUBWAY": "지하철", "지하철": "지하철", "전철": "지하철",
-            "TRAIN": "기차", "기차": "기차", "EXPRESSBUS": "고속버스",
-            "AIRPLANE": "항공", "FERRY": "여객선"}
+# 부분일치로 찾으므로 **긴 키가 먼저** 와야 한다.
+# "BUS" 가 앞에 있으면 "EXPRESSBUS" 토큰이 "버스"로 잡혀
+# 아래 "고속버스" 값이 영원히 안 나온다. _LINE_COLOR 가
+# "수인분당"을 "분당"보다 앞에 둔 것과 같은 이유다.
+_MODE_KO = {"EXPRESSBUS": "고속버스", "AIRPLANE": "항공", "FERRY": "여객선",
+            "SUBWAY": "지하철", "TRAIN": "기차", "WALK": "도보", "BUS": "버스",
+            "고속버스": "고속버스", "지하철": "지하철", "전철": "지하철",
+            "기차": "기차", "도보": "도보", "버스": "버스"}
 
 
 def _line_color(label):
