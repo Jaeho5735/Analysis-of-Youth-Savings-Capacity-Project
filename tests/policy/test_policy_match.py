@@ -229,3 +229,42 @@ def test_support_items_have_real_links():
                               age=AGE, deposit="1000", rent="75")
     dead = [i["label"] for i in items if i["href"] in ("#", "", None)]
     assert not dead, f"링크가 없는 항목: {dead}"
+
+
+def test_unchecked_reaches_the_screen():
+    """확인 못 한 조건이 화면 항목까지 전달되는지.
+
+    2페이지 폼에 소득 칸이 없어 _support_items 는 income=None 으로 조회한다.
+    _judge_policy 는 이를 올바르게 처리해 unchecked=["소득"] 을 남기지만,
+    그 표시를 화면으로 안 넘기면 월소득 128만원 이하 대상 정책이
+    월 280만원 버는 사용자에게 아무 표시 없이 뜬다.
+
+    조회 계층이 옳게 만들어져 있어도 표시 계층에서 끊기면 결과는 같다.
+    """
+    base_col = {"total": 1_000_000, "housing": 700_000,
+                "commute_min": 30, "region_group": "서남권"}
+    items, _ = _support_items(base_col, age=AGE, deposit="1000", rent="75")
+
+    assert items, "정책 목록이 비었다"
+    noted = [i for i in items if i.get("note")]
+    assert noted, (
+        "소득을 안 넘기고 조회했는데 '확인 필요' 표시가 붙은 항목이 하나도 없다. "
+        "_support_items 가 unchecked 를 버리고 있다"
+    )
+    assert all("소득" in i["note"] for i in noted)
+    assert all("확인 필요" in i["note"] for i in noted)
+
+
+def test_no_note_when_all_conditions_checked():
+    """조건을 다 확인한 정책에는 표시가 붙지 않는지.
+
+    모두의카드는 소득 제한이 없어 소득을 몰라도 확인할 것이 없다.
+    표시가 아무 데나 붙으면 사용자가 무시하게 된다.
+    """
+    res = get_policies(age=AGE, income=None, rent=RENT)
+    target = next(p for p in res["matched"]
+                  if p["policy_name"] == "모두의카드(기후동행패스)")
+    assert not (target.get("unchecked") or []), (
+        "소득·월세 제한이 없는 정책에 미확인 표시가 붙었다"
+    )
+

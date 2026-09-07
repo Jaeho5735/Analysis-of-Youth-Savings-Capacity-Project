@@ -294,8 +294,8 @@ def _baseline(residence, workplace, deposit=None, rent=None, work_days=None,
 
     housing = mrent + dep_monthly
     m = _monthly(b, days, _pass_for_age(age)["cap"])
-    minutes, hours = m["commute_min"], m["monthly_commute_hour"]
-    time_value, fare, fare_actual = m["time_value"], m["fare"], m["fare_actual"]
+    minutes = m["commute_min"]
+    time_value, fare = m["time_value"], m["fare"]
 
     return {
         "home_name": home.get("dong_name") or residence,
@@ -1023,11 +1023,17 @@ def _support_items(base_col=None, age=None, deposit=None, rent=None):
     items = []
     for p in sorted(matched, key=key):
         name = p.get("policy_name") or ""
+        # 조회 계층은 확인하지 못한 조건을 unchecked 로 남긴다.
+        # 2페이지 폼에 소득 칸이 없어 소득은 늘 미확인이다.
+        # 이걸 버리면 월소득 128만원 이하 대상 정책이 월 280만원 버는
+        # 사용자에게 아무 표시 없이 뜬다. 화면까지 그대로 전달한다.
+        unchecked = p.get("unchecked") or []
         items.append({
             "label": _wrap_support_label(name),
             "icon": _SUPPORT_ICONS.get(p.get("category"), _SUPPORT_ICON_DEFAULT),
             # 시안은 전부 "#" 이라 눌러도 아무 일이 없었다. 공식 페이지로 보낸다.
             "href": p.get("source_url") or "#",
+            "note": ("·".join(unchecked) + " 조건 확인 필요") if unchecked else "",
         })
     return items, res.get("as_of")
 
@@ -1253,10 +1259,12 @@ def build_page6(base_json, base_place=None, work_place=None, dong=None,
         sup = data["support"]
         sup["items"] = sup_items
         # 자격 판정이 아니라 탐색 우선순위라는 것을 한 줄로 밝힌다.
-        # 카드에는 이름과 아이콘만 들어가서, 요건 안내는 여기 말고 자리가 없다.
+        # 연령은 _judge_policy 가 실제로 걸러낸다(만 45세면 청년 정책이 빠진다).
+        # 미확인인 것은 소득뿐이고 그건 카드 배지로도 밝히므로 여기도 소득만 말한다.
+        # 카드에는 이름과 아이콘만 들어가서, 기준 시점 안내는 여기 말고 자리가 없다.
         sup["more"]["label"] = (
-            f"연령·소득 요건은 각 기관에서 확인하세요 ({sup_as_of} 기준)"
-            if sup_as_of else "연령·소득 요건은 각 기관에서 확인하세요")
+            f"소득 요건은 각 기관에서 확인하세요 ({sup_as_of} 기준)"
+            if sup_as_of else "소득 요건은 각 기관에서 확인하세요")
         sup["more"]["href"] = "#"
 
     _refresh_chips(data, area_name=cands[0]["name"] if cands else base["name"],

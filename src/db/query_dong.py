@@ -662,7 +662,7 @@ def nearest_routed_work(home_code, work_code, conn=None):
             if not want:
                 return None
 
-            # 1순위 같은 자치구, 2순위 같은 권역. 각 후보는 이동량 많은 순.
+            # 1순위 같은 자치구, 2순위 그 외 자치구. 각 후보는 이동량 많은 순.
             for clause, params in (
                 (f"r.`{r['gu']}` = %s", (str(home_code), want["gu"])),
                 (f"r.`{r['gu']}` <> %s", (str(home_code), want["gu"])),
@@ -675,6 +675,11 @@ def nearest_routed_work(home_code, work_code, conn=None):
                     "LEFT JOIN fact_commute_od od "
                     "  ON od.home_code8 = cr.home_code8 AND od.work_code8 = cr.work_code8 "
                     "WHERE cr.home_code8 = %s AND cr.oneway_min IS NOT NULL "
+                    # 거주동 자신은 대체 근무지가 될 수 없다.
+                    # fact_commute_route 에는 내부통근 행(home=work)이 있어
+                    # 빼지 않으면 "자기 동네로 출근"이 대체안으로 나온다.
+                    # list_work_options 와 같은 조건이다.
+                    "  AND cr.work_code8 <> cr.home_code8 "
                     f"  AND {clause} "
                     "ORDER BY COALESCE(od.flow, 0) DESC LIMIT 1",
                     params,
