@@ -294,8 +294,8 @@ def _baseline(residence, workplace, deposit=None, rent=None, work_days=None,
 
     housing = mrent + dep_monthly
     m = _monthly(b, days, _pass_for_age(age)["cap"])
-    minutes, hours = m["commute_min"], m["monthly_commute_hour"]
-    time_value, fare, fare_actual = m["time_value"], m["fare"], m["fare_actual"]
+    minutes = m["commute_min"]
+    time_value, fare = m["time_value"], m["fare"]
 
     return {
         "home_name": home.get("dong_name") or residence,
@@ -1259,10 +1259,12 @@ def build_page6(base_json, base_place=None, work_place=None, dong=None,
         sup = data["support"]
         sup["items"] = sup_items
         # 자격 판정이 아니라 탐색 우선순위라는 것을 한 줄로 밝힌다.
-        # 카드에는 이름과 아이콘만 들어가서, 요건 안내는 여기 말고 자리가 없다.
+        # 연령은 _judge_policy 가 실제로 걸러낸다(만 45세면 청년 정책이 빠진다).
+        # 미확인인 것은 소득뿐이고 그건 카드 배지로도 밝히므로 여기도 소득만 말한다.
+        # 카드에는 이름과 아이콘만 들어가서, 기준 시점 안내는 여기 말고 자리가 없다.
         sup["more"]["label"] = (
-            f"연령·소득 요건은 각 기관에서 확인하세요 ({sup_as_of} 기준)"
-            if sup_as_of else "연령·소득 요건은 각 기관에서 확인하세요")
+            f"소득 요건은 각 기관에서 확인하세요 ({sup_as_of} 기준)"
+            if sup_as_of else "소득 요건은 각 기관에서 확인하세요")
         sup["more"]["href"] = "#"
 
     _refresh_chips(data, area_name=cands[0]["name"] if cands else base["name"],

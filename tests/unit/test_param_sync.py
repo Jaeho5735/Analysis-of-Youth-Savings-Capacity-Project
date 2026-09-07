@@ -23,6 +23,7 @@ web 이 src.db 에 의존하게 되어 지금 구조를 흔든다.
 
 import pytest
 
+from src.analysis import build_total_burden
 from src.db import query_dong
 from web import service
 
@@ -91,3 +92,28 @@ def test_time_value_matches_db():
         f"  DB dim_time_value.hourly_wage       = {db_wage:,}\n"
         "웹 화면과 SQL 분석 결과가 서로 다른 기준 위에 있다"
     )
+
+
+def test_time_value_matches_pipeline():
+    """파이프라인 상수와도 같은지.
+
+    src/analysis/build_total_burden.py 의 HOURLY_VALUE 는
+    fact_dong_burden 에 적재되는 총부담을 만드는 값이다.
+    여기만 바뀌면 DB 에 쌓인 값과 웹 화면이 서로 다른 기준 위에 선다.
+    파이프라인은 한 번 돌리고 잊기 쉬워서 어긋나도 오래 안 보인다.
+
+    시간가치는 이로써 네 곳에 있다.
+        web/service.py        TIME_VALUE_PER_HOUR
+        src/db/query_dong.py  TIME_VALUE_PER_HOUR
+        src/analysis/build_total_burden.py  HOURLY_VALUE
+        DB dim_time_value.hourly_wage
+    역할이 달라 합치지 않고, 값이 어긋나는지만 감시한다.
+    """
+    assert build_total_burden.HOURLY_VALUE == service.TIME_VALUE_PER_HOUR, (
+        f"시간가치가 파이프라인과 웹에서 다르다.\n"
+        f"  build_total_burden.HOURLY_VALUE = {build_total_burden.HOURLY_VALUE:,}\n"
+        f"  service.TIME_VALUE_PER_HOUR     = {service.TIME_VALUE_PER_HOUR:,}\n"
+        "DB 에 적재된 총부담과 화면 값이 서로 다른 기준 위에 있다. "
+        "파이프라인을 다시 돌려야 할 수 있다"
+    )
+
