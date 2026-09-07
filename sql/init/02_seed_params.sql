@@ -15,7 +15,7 @@ USE multicam;
 TRUNCATE TABLE dim_time_value;
 INSERT INTO dim_time_value
   (time_value_code, label, hourly_wage, is_default, source_note) VALUES
-  ('minwage', '최저임금 기준', 10320, 1, '2025년 최저임금. Phase 1 총부담 테이블과 동일 기준');
+  ('minwage', '최저임금 기준', 10320, 1, '2026년 최저임금. Phase 1 총부담 테이블과 동일 기준');
 -- 확정 후 주석 해제
 -- , ('youth_avg',   '청년 평균임금 기준', 0, 0, '값 미확정')
 -- , ('user_income', '사용자 소득 기준',   0, 0, '서비스단 개인화 - 이번 범위 제외')
