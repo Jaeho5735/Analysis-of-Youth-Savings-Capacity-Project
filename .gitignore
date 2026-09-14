@@ -83,3 +83,7 @@ web/uploads/
 
 .pytest_cache/
 __pycache__/
+
+data/doc_index.json
+docs/chatbot-eval-raw.json
+data/doc_index.json

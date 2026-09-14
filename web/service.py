@@ -306,6 +306,15 @@ def _baseline(residence, workplace, deposit=None, rent=None, work_days=None,
         "substitute": substitute,
         "housing": housing, "commute_min": minutes,
         "fare": fare, "time_value": time_value,
+        # 정기권 상한을 걸기 전 실지출. 챗봇이 "왜 9.4만이 아니라 5.5만인가"에
+        # 답하려면 두 값이 모두 필요하다. 화면에 쓰는 값은 fare 쪽이다.
+        "fare_actual": m["fare_actual"],
+        # 신뢰도. 화면은 status_note() 로 라벨을 띄우는데 이 값이 여기서
+        # 끊기면 4페이지 설명이 표본 부족 동을 확신하며 말하게 된다.
+        "status": target.get("status"),
+        "reasons": target.get("reasons") or [],
+        "burden_type": target.get("burden_type"),
+        "dong_type": target.get("dong_type"),
         "total": housing + (fare or 0) + (time_value or 0),
         "work_days": days,
     }
@@ -437,10 +446,15 @@ def build_page4(base_json, residence=None, workplace=None, deposit=None,
     # 계산이 멀쩡해도 템플릿만 바꾸면 테스트가 깨진다.
     data["_calc"] = {
         "housing": bl["housing"], "fare": bl["fare"],
+        "fare_actual": bl["fare_actual"],
         "time_value": bl["time_value"], "total": bl["total"],
         "work_days": bl["work_days"], "commute_min": bl["commute_min"],
         "transit_pass_cap": _pass_for_age(age)["cap"],
         "home": bl["home_name"], "work": bl["work_name"],
+        "home_code": bl["home_code"], "work_code": bl["work_code"],
+        "status": bl["status"], "reasons": bl["reasons"],
+        "burden_type": bl["burden_type"], "dong_type": bl["dong_type"],
+        "substitute_work": (bl.get("substitute") or {}).get("name"),
     }
 
     # 대체 계산했다면 밝힌다. 3페이지와 같은 규칙이므로 문구도 맞춘다.
@@ -793,11 +807,29 @@ def build_page5(base_json, area=None, base_code=BASE_DONG_CODE,
     # 3·4·6페이지의 총부담과 같은 값이어야 한다.
     data["_calc"] = {
         "housing": r_from, "fare": bb.get("fare"),
+        "fare_actual": bb.get("fare_actual"),
         "time_value": bb.get("time_value"), "total": t_from,
         "work_days": days5, "commute_min": bb.get("commute_min"),
         "transit_pass_cap": cap5,
         "home": b_name, "work": work_place,
-        "candidate": {"name": t_name, "total": t_to},
+        "home_code": base_code, "work_code": work_code,
+        "status": base.get("status"), "reasons": base.get("reasons") or [],
+        "burden_type": base.get("burden_type"),
+        "dong_type": base.get("dong_type"),
+        "substitute_work": (base_sub or {}).get("name"),
+        # 후보동은 현재 집과 신뢰도가 다를 수 있다. 화면은 rent.note 로
+        # 밝히고 있으므로 설명도 같은 사실을 알고 있어야 한다.
+        "candidate": {"name": t_name, "total": t_to,
+                      "housing": tb.get("housing_cost"),
+                      "fare": tb.get("fare"),
+                      "fare_actual": tb.get("fare_actual"),
+                      "time_value": tb.get("time_value"),
+                      "commute_min": tb.get("commute_min"),
+                      "transfer": tb.get("transfer"),
+                      "status": target.get("status"),
+                      "reasons": target.get("reasons") or [],
+                      "burden_type": target.get("burden_type"),
+                      "dong_type": target.get("dong_type")},
     }
     return data
 
@@ -1099,7 +1131,13 @@ def _col_of(place, work_code, deposit=None, rent=None, work_days=None,
     return {
         "name": (t.get("dong") or {}).get("name") or place,
         "type": (t.get("dong_type") or "").strip(),
+        "code": code,
         "housing": housing, "fare": fare, "time_value": time_value,
+        # 상한 적용 전 실지출과 신뢰도. 표에는 안 쓰지만 설명에는 필요하다.
+        "fare_actual": m["fare_actual"],
+        "status": t.get("status"),
+        "reasons": t.get("reasons") or [],
+        "burden_type": t.get("burden_type"),
         "commute_min": minutes, "transfer": b.get("transfer"),
         # 보증금 월환산 전환율이 권역별이라 여기서 함께 내보낸다.
         # 이게 없으면 _support_rank 가 권역을 몰라 전체 중앙값으로 계산한다.
@@ -1275,12 +1313,28 @@ def build_page6(base_json, base_place=None, work_place=None, dong=None,
     # 계산이 멀쩡해도 템플릿만 바꾸면 테스트가 깨진다.
     data["_calc"] = {
         "housing": base["housing"], "fare": base["fare"],
+        "fare_actual": base.get("fare_actual"),
         "time_value": base["time_value"], "total": base["total"],
         "work_days": int(_num_only(work_days, WORK_DAYS_DEFAULT)
                          or WORK_DAYS_DEFAULT),
         "commute_min": base["commute_min"],
         "transit_pass_cap": cap,
         "home": base["name"], "work": work_place,
+        "home_code": base.get("code"), "work_code": work_code,
+        "status": base.get("status"), "reasons": base.get("reasons") or [],
+        "burden_type": base.get("burden_type"),
+        "dong_type": base.get("type") or None,
+        "substitute_work": (base_sub or {}).get("name"),
+        "candidates": [
+            {"name": c["name"], "type": c.get("type"),
+             "housing": c["housing"], "fare": c["fare"],
+             "fare_actual": c.get("fare_actual"),
+             "time_value": c["time_value"], "total": c["total"],
+             "commute_min": c["commute_min"], "transfer": c.get("transfer"),
+             "status": c.get("status"), "reasons": c.get("reasons") or [],
+             "delta_total": base["total"] - c["total"]}
+            for c in cands
+        ],
     }
     return data
 
@@ -1732,7 +1786,11 @@ def build_page3(base_json, residence=None, workplace=None,
         "time_value": time_value, "total": total,
         "work_days": days, "commute_min": minutes,
         "home": home["dong_name"], "work": work["dong_name"],
+        "home_code": home.get("dong_code"), "work_code": work.get("dong_code"),
         "status": target.get("status"),
+        "reasons": target.get("reasons") or [],
+        "burden_type": target.get("burden_type"),
+        "dong_type": target.get("dong_type"),
         "share_housing": round(share_h, 4),
         "long_commute": long_commute,
         "transit_pass_cap": pass_info["cap"],

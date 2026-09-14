@@ -1,9 +1,13 @@
-<!-- 공통 하단바: data.faq.title, data.faq.questions, data.faq.avatar(선택) 사용 -->
+<!-- 공통 하단바: data.faq.title, data.faq.questions, data.faq.avatar(선택) 사용
+
+     칩은 원래 <div> 라 눌러도 아무 일도 없었다. 태그·클래스·순서를 그대로 두고
+     data-loca-ask 속성만 붙인다. loca_combo.js 가 이 속성을 보고 챗봇 패널을
+     연다. 스크립트가 죽으면 예전처럼 아무 일도 없을 뿐, 화면은 그대로다. -->
 <div class="faq-panel {% if data.faq.avatar %}has-avatar{% endif %}">
   <h2 class="faq-title">{{ data.faq.title }}</h2>
   <div class="faq-row">
     {% for q in data.faq.questions %}
-    <div class="faq-chip">
+    <div class="faq-chip" data-loca-ask="{{ q }}" role="button" tabindex="0">
       <span class="mark">?</span>
       {{ q }}
       <span class="arrow">›</span>

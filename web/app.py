@@ -1,5 +1,6 @@
 import os
 import json
+import logging
 import sys
 from pathlib import Path
 
@@ -13,8 +14,10 @@ from urllib.parse import urlencode
 
 from flask import Flask, jsonify, render_template, request
 
-from web.service import (build_page3, build_page4, build_page5, build_page6,
-                         resolve_place)
+from web.chat_context import attach_docs, build_chat_context
+from web.chat_llm import ask
+from web.service import (_blank, build_page3, build_page4, build_page5,
+                         build_page6, resolve_place)
 
 try:
     from src.db.query_dong import list_dongs, list_home_options, list_work_options
@@ -23,6 +26,14 @@ except ImportError:  # web/ 에서 직접 실행할 때
     from pathlib import Path as _P
     sys.path.insert(0, str(_P(__file__).resolve().parents[1]))
     from src.db.query_dong import list_dongs, list_home_options, list_work_options
+
+# web.chat_llm 등 모듈 로거를 보이게 한다.
+# Flask 는 app.logger 에만 핸들러를 붙이고 루트 로거는 기본이 WARNING 이라,
+# 모듈에서 찍은 log.info 가 조용히 사라진다. 실제로 컨텍스트 크기 로그가
+# 안 보여서 "파일이 안 올라갔다"고 며칠 헤맸다.
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO"),
+    format="[%(asctime)s] %(levelname)s %(name)s: %(message)s")
 
 app = Flask(__name__)
 
@@ -164,11 +175,19 @@ def explore():
 def explore_result():
     # 사용자가 입력한 지역이 있으면 DB 에서 조회해 값을 갈아끼운다.
     # 입력이 없으면 기존 시연용 JSON 을 그대로 쓴다.
-    # 4페이지 폼은 name="area", 추천 카드 링크는 ?dong= 을 쓴다. 둘 다 받는다.
+    # 5페이지 폼은 name="dong", 4페이지 추천 카드 링크는 ?area= 을 쓴다.
+    #
+    # q 는 여기서 읽지 않는다. 하단 채팅바가 질문 칩을 name="q" 로 제출하는데,
+    # 그걸 지역명으로 받으면 "'이 지역은 왜 월세 착시예요?' 는 서울 밖이거나
+    # 찾을 수 없어요" 같은 화면이 뜬다. 질문은 지역이 아니다.
     area = next((request.args.get(k, "").strip()
-                 for k in ("area", "dong", "q")
+                 for k in ("area", "dong")
                  if request.args.get(k, "").strip()), "")
     f = read_form(request.args)
+    # 이 라우트에만 로그가 없었다. 3·4·6 페이지에는 있는데 여기만 빠져서,
+    # 화면이 조용히 시연값으로 되돌아가도 서버에 아무 흔적이 남지 않았다.
+    app.logger.info("explore_result args=%s -> %s area=%r",
+                    dict(request.args), f, area)
     data = load_data("page5")
     data["carry"] = f
     data["carry_qs"] = urlencode({k: v for k, v in f.items() if v})
@@ -189,6 +208,41 @@ def explore_result():
             v["conclusion"]["tag"] = "안내"
             v["conclusion"]["title"] = "일시적 오류"
             v["conclusion"]["text"] = "데이터베이스에 연결하지 못했습니다."
+    elif request.args:
+        # 후보 지역 없이 이 페이지로 들어온 경우.
+        # 여기서 시연용 JSON 을 그대로 보여주면 화면 전체가 시연 페르소나
+        # (잠원동 -> 삼정KPMG, 신길1동, 청림동/난향동/신대방1동)로 돌아간다.
+        # 검색창 기본값도 "신길1동"이라 사용자 눈에는 "입력은 반영됐는데
+        # 근무지만 틀린 결과"로 보인다. 3페이지 /result 가 같은 이유로
+        # 이미 막고 있던 것을 여기서만 빠뜨리고 있었다.
+        app.logger.warning("후보 지역을 인식하지 못함. 받은 키: %s",
+                           list(request.args.keys()))
+        if request.args.get("q"):
+            # 하단 채팅바에서 제출된 것. 챗봇을 붙이기 전까지 여기로 떨어진다.
+            app.logger.warning("채팅바 제출. q=%r", request.args.get("q"))
+
+        # 시연 숫자를 남기지 않는다. 하나라도 남으면 조회된 값으로 읽힌다.
+        v = data["verdict"]
+        v["title_line1"] = "비교할 후보 지역을 입력해주세요."
+        v["title_line2"] = "지하철역·건물명·주소·행정동 모두 입력할 수 있어요."
+        v["conclusion"]["tag"] = "안내"
+        v["conclusion"]["title"] = "입력 필요"
+        v["conclusion"]["text"] = "예) 신길1동, 봉천동, 잠원동"
+        _blank(v)
+        # 검색창에 남은 시연 지역명이 사용자 입력처럼 보이지 않게 비운다.
+        data["hero"]["search"]["value"] = ""
+
+        # 추천 섹션도 비운다. 여기 남아 있던 "그렇다면, 삼정KPMG 출근에는"
+        # 이 실제로 버그로 신고된 문구다.
+        rec = data.get("recommend")
+        if rec:
+            w = f.get("workplace")
+            rec["title_line1"] = (f"{w} 출근 기준으로" if w
+                                  else "후보를 입력하시면")
+            rec["title_line2"] = "후보 지역을 비교해드릴게요."
+            rec["description"] = ("위 칸에 후보 지역을 입력하고 "
+                                  "'현재 집과 비교하기'를 눌러주세요.")
+            rec["cards"] = []
     return render_template("page5.html", data=data)
 
 
@@ -238,6 +292,129 @@ def api_suggest():
                     "items": [{"label": f"{r['gu']} {r['name']}",
                                "value": r["name"],
                                "code": r["code"]} for r in rows]})
+
+
+# 챗봇이 어느 화면에서 물어보는지. 경로로 정한다.
+# 브라우저가 보낸 page 번호를 그대로 믿으면 5페이지 값으로 3페이지를
+# 설명하는 답이 나올 수 있다.
+PAGE_BY_PATH = {"/result": 3, "/explore": 4, "/explore/result": 5,
+                "/compare": 6}
+
+# 방법론 문서 검색기. 한 번만 읽어 재사용한다.
+# 인덱스가 없어도 앱은 떠야 한다. 문서 설명만 못 할 뿐 계산 설명은 된다.
+_DOC_SEARCH = "unset"
+
+
+def doc_searcher():
+    global _DOC_SEARCH
+    if _DOC_SEARCH == "unset":
+        try:
+            from web.doc_search import DocSearch
+            path = BASE.parent / "data" / "doc_index.json"
+            _DOC_SEARCH = DocSearch.load(path)
+            app.logger.info("문서 인덱스 로드: 조각 %d개",
+                            len(_DOC_SEARCH.chunks))
+        except Exception as e:
+            app.logger.warning("문서 인덱스 없음(%s). "
+                               "python scripts/build_doc_index.py 로 만들 수 "
+                               "있습니다.", e)
+            _DOC_SEARCH = None
+    return _DOC_SEARCH
+
+
+def _rebuild(page, args):
+    """챗봇에 넘길 화면을 서버에서 다시 만든다.
+
+    브라우저에 계산값을 내려보내고 그걸 돌려받는 방식을 쓰지 않는 이유가
+    두 가지다. 첫째, 화면에 <script> 로 값을 심으면 DOM 구조가 바뀐다.
+    둘째, 사용자가 개발자도구로 숫자를 바꿔 보낼 수 있다. 그러면 챗봇이
+    "환각 없이" 거짓말을 하게 된다. 조회를 한 번 더 하는 값을 치른다.
+    """
+    f = read_form(args)
+    area = next((args.get(k, "").strip() for k in ("area", "dong")
+                 if args.get(k, "").strip()), "")
+    qs = urlencode({k: v for k, v in f.items() if v})
+
+    if page == 3:
+        return f, build_page3(
+            load_data("page3"), residence=f.get("residence"),
+            workplace=f.get("workplace"), deposit=f.get("deposit"),
+            rent=f.get("rent"), work_days=f.get("work_days"),
+            depart_time=f.get("depart_time"), age=f.get("age"))
+    if page == 4:
+        return f, build_page4(
+            load_data("page4"), residence=f.get("residence"),
+            workplace=f.get("workplace"), deposit=f.get("deposit"),
+            rent=f.get("rent"), work_days=f.get("work_days"),
+            depart_time=f.get("depart_time"), age=f.get("age"),
+            area=area or None, carry_qs=qs)
+    if page == 5:
+        return f, build_page5(
+            load_data("page5"), area=area, base_place=f.get("residence"),
+            work_place=f.get("workplace"), deposit=f.get("deposit"),
+            rent=f.get("rent"), work_days=f.get("work_days"), age=f.get("age"))
+    return f, build_page6(
+        load_data("page6"), base_place=f.get("residence"),
+        work_place=f.get("workplace"), dong=area or None,
+        deposit=f.get("deposit"), rent=f.get("rent"),
+        work_days=f.get("work_days"), age=f.get("age"), carry_qs=qs)
+
+
+@app.route("/api/chat", methods=["POST"])
+def api_chat():
+    """질문 칩 하나에 답한다.
+
+    실패해도 200 으로 문장을 돌려준다. 챗봇이 안 되는 것과 화면이 깨지는
+    것은 다른 문제이고, 여기서 500 을 던지면 앞단이 빈 말풍선을 띄운다.
+    """
+    body = request.get_json(silent=True) or {}
+    question = (body.get("question") or "").strip()
+    args = {k: str(v) for k, v in (body.get("params") or {}).items()}
+    page = PAGE_BY_PATH.get(body.get("path") or "")
+
+    app.logger.info("api_chat page=%s q=%r", page, question)
+
+    if not question:
+        return jsonify({"answer": "무엇이 궁금하신지 알려주세요.",
+                        "source": "guard"})
+    if page is None:
+        return jsonify({"answer": "이 화면에서는 아직 답해드릴 수 없어요.",
+                        "source": "guard"})
+
+    try:
+        f, data = _rebuild(page, args)
+    except Exception as e:
+        app.logger.exception("api_chat rebuild 실패: %s", e)
+        return jsonify({"answer": "지금은 화면 값을 다시 읽지 못했어요. "
+                                  "잠시 후 다시 시도해주세요.",
+                        "source": "error"})
+
+    calc = data.get("_calc")
+    if not calc:
+        # 입력이 없어 시연 화면이거나 조회가 실패한 경우.
+        # 이때 답을 만들면 시연 페르소나를 사용자 값처럼 설명하게 된다.
+        app.logger.warning("api_chat: _calc 없음. page=%s args=%s", page, args)
+        return jsonify({"answer": "아직 계산된 결과가 없어요. "
+                                  "거주지와 근무지를 입력하시면 "
+                                  "그 값을 기준으로 설명해 드릴게요.",
+                        "source": "guard"})
+
+    try:
+        ctx = build_chat_context(page, calc, f)
+    except Exception as e:
+        app.logger.exception("api_chat 컨텍스트 실패: %s", e)
+        return jsonify({"answer": "이 화면의 값을 설명할 준비가 안 됐어요.",
+                        "source": "error"})
+
+    attach_docs(ctx, question, doc_searcher())
+    app.logger.info("문서 근거 %d건: %s", len(ctx["docs"]),
+                    ", ".join(d["id"] for d in ctx["docs"]) or "-")
+
+    out = ask(ctx, question)
+    if out["source"] == "fallback":
+        app.logger.warning("게이트 차단 후 폴백: %s", out["blocked_reason"])
+    return jsonify({"answer": out["answer"], "source": out["source"],
+                    "refused": out["refused"]})
 
 
 @app.route("/compare")
